@@ -12,6 +12,17 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 .gradletasknamecache
 
+# SBOM output
+generated-sboms/
+*.bom.json
+*.bom.xml
+bom.json
+bom.xml
+sbom-summary.json
+
+# Scan results
+scan-results.json
+
 # Eclipse
 .project
 .classpath

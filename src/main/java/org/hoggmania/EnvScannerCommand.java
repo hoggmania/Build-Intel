@@ -22,16 +22,18 @@ import java.util.stream.Collectors;
  */
 @QuarkusMain
 @TopCommand
-@Command(name = "scan", mixinStandardHelpOptions = true, description = "Scan repository for build, IaC, and source files.")
+@Command(
+    name = "scan", 
+    mixinStandardHelpOptions = true, 
+    description = "Scan repository for build, IaC, and source files.",
+    subcommands = {SbomCommand.class}
+)
 public class EnvScannerCommand implements Runnable {
 
     @Parameters(index = "0", description = "Root directory to scan.", defaultValue = "./")
     File rootDir;
 
-    @Option(names = "--json", description = "Output results as JSON")
-    boolean json;
-
-    @Option(names = "--output", description = "Output file path (for JSON only)")
+    @Option(names = "--output", description = "Output file path for JSON (default: scan-results.json)")
     File output;
 
     // Core pattern groups
@@ -81,7 +83,7 @@ public class EnvScannerCommand implements Runnable {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            args = new String[] {"./", "--json", "--output=build.json"};
+            args = new String[] {"./", "--output=scan-results.json"};
         }
 
         System.exit(new CommandLine(new EnvScannerCommand()).execute(args));
@@ -192,48 +194,46 @@ public class EnvScannerCommand implements Runnable {
 
     @SuppressWarnings("unchecked")
     private void outputResults(Map<String, Object> result) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        if (json) {
-            if (output != null) {
-                mapper.writerWithDefaultPrettyPrinter().writeValue(output, result);
-                System.out.println("[SUCCESS] Results written to " + output.getAbsolutePath());
-            } else {
-                System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(result));
-            }
-        } else {
-            System.out.println("Scanned directory: " + rootDir);
-            ((Map<String, List<String>>) result.get("foundFiles")).forEach((tool, files) ->
-                    System.out.println("  " + tool + ": " + files.size() + " files"));
-            
-            // Display multi-module information
-            Map<String, Boolean> multiModuleInfo = (Map<String, Boolean>) result.get("multiModule");
-            if (multiModuleInfo != null && !multiModuleInfo.isEmpty()) {
-                System.out.println("\nMulti-Module Builds:");
-                multiModuleInfo.forEach((tool, isMultiModule) ->
-                        System.out.println("   " + tool + ": " + isMultiModule));
-            }
-            
-            System.out.println("\nTool Versions:");
-            ((Map<String, ToolVersionInfo>) result.get("toolVersions")).forEach((tool, versionInfo) -> {
-                System.out.println("   " + tool + ": " + versionInfo.isDetected());
-                if (versionInfo.isDetected()) {
-                    // Print version information with indentation
-                    String[] lines = versionInfo.getVersionInfo().split("\n");
-                    for (String line : lines) {
-                        if (!line.trim().isEmpty()) {
-                            System.out.println("      " + line);
-                        }
-                    }
-                } else {
-                    System.out.println("      " + versionInfo.getVersionInfo());
-                }
-            });
-            System.out.println("\nFile Type Counts:");
-            Map<String, FileTypeInfo> fileTypeCounts = (Map<String, FileTypeInfo>) result.get("fileTypeCounts");
-            fileTypeCounts.forEach((type, info) -> {
-                System.out.println(String.format("   %s: %d (%.2f%%)", type, info.getCount(), info.getPercentage()));
-            });
+        // Always output to console
+        System.out.println("\nBuild Environment Intelligence Scanner");
+        System.out.println("=====================================");
+        System.out.println("\nScanned directory: " + rootDir.getAbsolutePath());
+        
+        // Display multi-module information
+        Map<String, Boolean> multiModuleInfo = (Map<String, Boolean>) result.get("multiModule");
+        if (multiModuleInfo != null && !multiModuleInfo.isEmpty()) {
+            System.out.println("\nMulti-Module Builds:");
+            multiModuleInfo.forEach((tool, isMultiModule) ->
+                    System.out.println("   " + tool + ": " + isMultiModule));
         }
+        
+        System.out.println("\nTool Versions:");
+        ((Map<String, ToolVersionInfo>) result.get("toolVersions")).forEach((tool, versionInfo) -> {
+            System.out.println("   " + tool + ": " + versionInfo.isDetected());
+            if (versionInfo.isDetected()) {
+                // Print version information with indentation
+                String[] lines = versionInfo.getVersionInfo().split("\n");
+                for (String line : lines) {
+                    if (!line.trim().isEmpty()) {
+                        System.out.println("      " + line);
+                    }
+                }
+            } else {
+                System.out.println("      " + versionInfo.getVersionInfo());
+            }
+        });
+        
+        System.out.println("\nFile Type Counts:");
+        Map<String, FileTypeInfo> fileTypeCounts = (Map<String, FileTypeInfo>) result.get("fileTypeCounts");
+        fileTypeCounts.forEach((type, info) -> {
+            System.out.println(String.format("   %s: %d (%.2f%%)", type, info.getCount(), info.getPercentage()));
+        });
+        
+        // Always generate JSON file
+        ObjectMapper mapper = new ObjectMapper();
+        File jsonOutput = output != null ? output : new File("scan-results.json");
+        mapper.writerWithDefaultPrettyPrinter().writeValue(jsonOutput, result);
+        System.out.println("\n[SUCCESS] JSON results written to " + jsonOutput.getAbsolutePath());
     }
 
     private Map<String, List<Path>> scanFiles(Path root) throws IOException {
