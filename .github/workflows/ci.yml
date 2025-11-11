@@ -5,12 +5,16 @@ name: CI build
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -21,21 +25,29 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Get version from pom.xml
+        id: get_version
+        run: |
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Project version: $VERSION"
+
       - name: Build with Maven
         run: ./mvnw verify -B
 
       - name: Build Quarkus JVM
-        run: ./mvnw package -B -Dquarkus.package.type=uber-jar
+        run: ./mvnw package -B -Dquarkus.package.jar.type=uber-jar
 
       - name: Upload JVM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bei-jvm
+          name: bei-jvm-${{ steps.get_version.outputs.version }}
           path: target/*-runner.jar
           retention-days: 7
 
   build-native:
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v5
 
@@ -53,6 +65,41 @@ jobs:
       - name: Upload Native artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bei-native
+          name: bei-native-${{ needs.build.outputs.version }}
           path: target/*-runner
           retention-days: 7
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, build-native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download JVM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bei-jvm-${{ needs.build.outputs.version }}
+          path: artifacts/jvm
+
+      - name: Download Native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bei-native-${{ needs.build.outputs.version }}
+          path: artifacts/native
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/jvm/*-runner.jar
+            artifacts/native/*-runner
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(needs.build.outputs.version, 'SNAPSHOT') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
