@@ -137,6 +137,14 @@ public class SbomCommand implements Runnable {
             
             List<BuildSystemInfo> buildSystems = convertToBuildSystemInfo(detailedBuildSystems);
             
+            // If no build systems found, check for standalone JARs
+            if (buildSystems.isEmpty()) {
+                BuildSystemInfo jarSystem = detectStandaloneJars(rootDir.toPath(), outputDir);
+                if (jarSystem != null) {
+                    buildSystems.add(jarSystem);
+                }
+            }
+            
             if (buildSystems.isEmpty()) {
                 System.err.println(ConsoleColors.error("[ERROR]") + " No supported build system detected");
                 System.err.println("Supported build systems:");
@@ -149,6 +157,7 @@ public class SbomCommand implements Runnable {
                 System.err.println("  - Rust (Cargo.toml)");
                 System.err.println("  - PHP (composer.json)");
                 System.err.println("  - Ruby (Gemfile)");
+                System.err.println("  - Standalone JARs (*.jar with no package manager)");
                 return;
             }
 
@@ -211,6 +220,34 @@ public class SbomCommand implements Runnable {
     }
 
     /**
+     * Detect standalone JAR files when no package manager is present.
+     * Returns a BuildSystemInfo if JARs are found, null otherwise.
+     */
+    private BuildSystemInfo detectStandaloneJars(Path rootDir, File outputDir) throws IOException {
+        org.hoggmania.generators.JarSbomGenerator jarGenerator = new org.hoggmania.generators.JarSbomGenerator();
+        
+        // Use the findBuildFiles method which checks for JARs and no package manager
+        List<Path> jarBuildFiles = jarGenerator.findBuildFiles(rootDir);
+        
+        if (jarBuildFiles.isEmpty()) {
+            return null;
+        }
+        
+        // buildFile is the root directory for JAR generator
+        Path buildFile = jarBuildFiles.get(0);
+        String projectName = jarGenerator.extractProjectName(buildFile);
+        String sbomCommand = jarGenerator.generateSbomCommand(projectName, outputDir, buildFile);
+        
+        BuildSystemInfo info = new BuildSystemInfo("Standalone JARs", sbomCommand);
+        info.buildFiles = Collections.singletonList(buildFile.toString());
+        info.multiModule = false;
+        info.projectName = projectName;
+        info.workingDirectory = buildFile;
+        
+        return info;
+    }
+
+    /**
      * Convert the detailed build system instances from EnvScannerCommand into BuildSystemInfo objects
      * that contain the necessary information for SBOM generation.
      * 
@@ -255,8 +292,82 @@ public class SbomCommand implements Runnable {
         return buildSystems;
     }
 
+    /**
+     * Generate SBOM for standalone JAR files.
+     */
+    private SbomGenerationResult generateJarSbom(BuildSystemInfo buildInfo) {
+        SbomGenerationResult result = new SbomGenerationResult(buildInfo);
+        
+        try {
+            org.hoggmania.generators.JarSbomGenerator jarGenerator = new org.hoggmania.generators.JarSbomGenerator();
+            Path rootPath = buildInfo.workingDirectory;
+            
+            // Find all JARs
+            List<org.hoggmania.generators.JarSbomGenerator.JarInfo> jarInfos = jarGenerator.findJars(rootPath);
+            
+            if (jarInfos.isEmpty()) {
+                result.success = false;
+                result.errorMessage = "No JAR files found in project";
+                System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
+                writeSbomLogFile(result);
+                return result;
+            }
+
+            System.out.println("Found " + jarInfos.size() + " JAR file(s):");
+            
+            // Lookup each JAR in Maven Central
+            for (org.hoggmania.generators.JarSbomGenerator.JarInfo jarInfo : jarInfos) {
+                System.out.println("  " + jarInfo.getPath() + " (SHA1: " + jarInfo.getSha1() + ")");
+                try {
+                    List<org.hoggmania.generators.JarSbomGenerator.MavenArtifact> artifacts = 
+                            jarGenerator.lookupInMavenCentral(jarInfo.getSha1());
+                    jarInfo.setArtifacts(artifacts);
+                    
+                    if (artifacts.isEmpty()) {
+                        System.out.println("    → Not found in Maven Central, will use pkg:maven/unknown@" + jarInfo.getSha1());
+                    } else {
+                        System.out.println("    → Found " + artifacts.size() + " artifact(s) in Maven Central:");
+                        for (org.hoggmania.generators.JarSbomGenerator.MavenArtifact artifact : artifacts) {
+                            System.out.println("       - " + artifact.getPurl());
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("    → Failed to lookup in Maven Central: " + e.getMessage());
+                    // Leave artifacts empty - will use unknown
+                }
+            }
+
+            // Generate SBOM
+            File outputFile = new File(outputDir, buildInfo.projectName + "-bom.json");
+            jarGenerator.generateSbom(jarInfos, buildInfo.projectName, outputFile);
+            
+            System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " SBOM generated: " + outputFile.getAbsolutePath());
+            
+            result.success = true;
+            result.expectedSbomPath = outputFile.getAbsolutePath();
+            result.sbomFileExists = outputFile.exists();
+            result.sbomFileSize = outputFile.length();
+            writeSbomLogFile(result);
+            
+        } catch (Exception e) {
+            result.success = false;
+            result.errorMessage = "Failed to generate JAR SBOM: " + e.getMessage();
+            result.errorOutput = e.toString();
+            System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
+            e.printStackTrace();
+            writeSbomLogFile(result);
+        }
+        
+        return result;
+    }
+
     private SbomGenerationResult generateSbomWithDetails(BuildSystemInfo buildInfo) {
         SbomGenerationResult result = new SbomGenerationResult(buildInfo);
+        
+        // Special handling for standalone JARs - generate SBOM directly
+        if ("Standalone JARs".equals(buildInfo.buildSystem)) {
+            return generateJarSbom(buildInfo);
+        }
         
         // First check if the required build tool is available
         if (!checkBuildToolAvailable(buildInfo.buildSystem)) {

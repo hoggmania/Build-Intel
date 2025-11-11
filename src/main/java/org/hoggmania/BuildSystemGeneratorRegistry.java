@@ -48,6 +48,7 @@ public class BuildSystemGeneratorRegistry {
         registerGenerator(new RustSbomGenerator());
         registerGenerator(new PhpSbomGenerator());
         registerGenerator(new RubySbomGenerator());
+        registerGenerator(new JarSbomGenerator());
     }
     
     private static void registerGenerator(BuildSystemSbomGenerator generator) {
