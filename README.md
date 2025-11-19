@@ -64,7 +64,7 @@ java -jar target/quarkus-app/quarkus-run.jar scan --output custom-scan.json
 
 **Example Output:**
 
-```json
+```bash
 Build Environment Intelligence Scanner
 =====================================
 
