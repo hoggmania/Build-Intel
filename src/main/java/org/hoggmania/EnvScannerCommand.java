@@ -25,8 +25,6 @@ package org.hoggmania;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
-
 
 import io.quarkus.picocli.runtime.annotations.TopCommand;
 import io.quarkus.runtime.annotations.QuarkusMain;
@@ -66,11 +64,14 @@ public class EnvScannerCommand implements Runnable {
     }
 
 
-    @Parameters(index = "0", description = "Root directory to scan.", defaultValue = "./")
-    File rootDir;
-
-    @Option(names = "--output", description = "Output file path for JSON (default: scan-results.json)")
+    @Option(names = {"-o", "--output"}, description = "Output file path for JSON (default: scan-results.json)")
     File output;
+
+    @Option(names = {"-j", "--json"}, description = "Output results to JSON file")
+    boolean jsonOutput;
+
+    @Option(names = {"-r", "--root"}, description = "Root directory to scan and use as working directory (default: current directory)", defaultValue = "./")
+    File rootWorkingDir;
 
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -83,7 +84,7 @@ public class EnvScannerCommand implements Runnable {
     @Override
     public void run() {
         try {
-            Map<String, List<Path>> foundFiles = scanFiles(rootDir.toPath());
+            Map<String, List<Path>> foundFiles = scanFiles(rootWorkingDir.toPath());
             
             // Detect multi-module builds (legacy, kept for backward compatibility)
             Map<String, Boolean> multiModuleInfo = detectMultiModuleBuilds(foundFiles);
@@ -92,7 +93,7 @@ public class EnvScannerCommand implements Runnable {
             Map<String, List<BuildSystemInstance>> detailedBuildSystems = detectDetailedBuildSystems(foundFiles);
             
             Map<String, ToolVersionInfo> toolVersions = detectBuildToolVersions(foundFiles.keySet());
-            Map<String, Long> fileTypeCounts = countSourceFiles(rootDir.toPath());
+            Map<String, Long> fileTypeCounts = countSourceFiles(rootWorkingDir.toPath());
             
             // Calculate percentages and create FileTypeInfo objects
             long totalFiles = fileTypeCounts.values().stream().mapToLong(Long::longValue).sum();
@@ -107,7 +108,7 @@ public class EnvScannerCommand implements Runnable {
                     });
 
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("scannedRoot", rootDir.getAbsolutePath());
+            result.put("scannedRoot", rootWorkingDir.getAbsolutePath());
             result.put("foundFiles", foundFiles.entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey,
@@ -234,7 +235,7 @@ public class EnvScannerCommand implements Runnable {
         // Always output to console
         System.out.println(ConsoleColors.bold("\nBuild Environment Intelligence Scanner"));
         System.out.println(ConsoleColors.bold("====================================="));
-        System.out.println("\nScanned directory: " + ConsoleColors.highlight(rootDir.getAbsolutePath()));
+        System.out.println("\nScanned directory: " + ConsoleColors.highlight(rootWorkingDir.getAbsolutePath()));
         
         // Display detailed build system instances
         Map<String, List<BuildSystemInstance>> buildSystemInstances = 
@@ -277,12 +278,14 @@ public class EnvScannerCommand implements Runnable {
             System.out.println(String.format("   %s: %d (%.2f%%)", type, info.getCount(), info.getPercentage()));
         });
         
-        // Always generate JSON file
-        ObjectMapper mapper = new ObjectMapper();
-        File jsonOutput = output != null ? output : new File("scan-results.json");
-        mapper.writerWithDefaultPrettyPrinter().writeValue(jsonOutput, result);
-        System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " JSON results written to " + 
-            ConsoleColors.highlight(jsonOutput.getAbsolutePath()));
+        // Generate JSON file only if --json flag is specified
+        if (jsonOutput) {
+            ObjectMapper mapper = new ObjectMapper();
+            File jsonFile = output != null ? output : new File("scan-results.json");
+            mapper.writerWithDefaultPrettyPrinter().writeValue(jsonFile, result);
+            System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " JSON results written to " + 
+                ConsoleColors.highlight(jsonFile.getAbsolutePath()));
+        }
     }
 
     /**

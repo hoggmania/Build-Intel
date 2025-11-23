@@ -55,16 +55,35 @@ public class NpmSbomGenerator implements BuildSystemSbomGenerator {
     
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
-        String outputFile = projectName + "-bom.json";
-        return String.format("npm sbom --sbom-format=cyclonedx > %s/%s",
-            outputDir.getAbsolutePath(), outputFile);
+        return generateSbomCommand(projectName, outputDir, null, "");
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
+        return generateSbomCommand(projectName, outputDir, buildFile, "");
+    }
+
+    @Override
+    public String generateSbomCommand(String projectName, File outputDir, Path buildFile, String additionalArgs) {
         String outputFile = projectName + "-bom.json";
-        return String.format("npm sbom --sbom-format=cyclonedx --package-lock-only --prefix %s > %s/%s",
-            buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
+        String base;
+        if (buildFile != null) {
+            base = String.format("npm sbom --sbom-format=cyclonedx --package-lock-only --prefix %s > %s/%s",
+                buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
+        } else {
+            base = String.format("npm sbom --sbom-format=cyclonedx > %s/%s",
+                outputDir.getAbsolutePath(), outputFile);
+        }
+        if (additionalArgs != null && !additionalArgs.isBlank()) {
+            // Insert additionalArgs before the redirection if present
+            int redirectIdx = base.indexOf('>');
+            if (redirectIdx > 0) {
+                base = base.substring(0, redirectIdx).trim() + " " + additionalArgs.trim() + " " + base.substring(redirectIdx);
+            } else {
+                base = base + " " + additionalArgs.trim();
+            }
+        }
+        return base;
     }
     
     @Override

@@ -49,16 +49,28 @@ public class MavenSbomGenerator implements BuildSystemSbomGenerator {
     
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
-        return String.format("mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom " +
-            "-DoutputFormat=json -DoutputDirectory=%s -DoutputName=%s-bom",
-            outputDir.getAbsolutePath(), projectName);
+        return generateSbomCommand(projectName, outputDir, null, "");
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
-        return String.format("mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom " +
-            "-DoutputFormat=json -DoutputDirectory=%s -DoutputName=%s-bom -f %s",
-            outputDir.getAbsolutePath(), projectName, buildFile.toAbsolutePath());
+        return generateSbomCommand(projectName, outputDir, buildFile, "");
+    }
+
+    @Override
+    public String generateSbomCommand(String projectName, File outputDir, Path buildFile, String additionalArgs) {
+        String base = "mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom " +
+            "-DoutputFormat=json -DoutputDirectory=%s -DoutputName=%s-bom";
+        String cmd;
+        if (buildFile != null) {
+            cmd = String.format(base + " -f %s", outputDir.getAbsolutePath(), projectName, buildFile.toAbsolutePath());
+        } else {
+            cmd = String.format(base, outputDir.getAbsolutePath(), projectName);
+        }
+        if (additionalArgs != null && !additionalArgs.isBlank()) {
+            cmd = cmd + " " + additionalArgs.trim();
+        }
+        return cmd;
     }
     
     @Override

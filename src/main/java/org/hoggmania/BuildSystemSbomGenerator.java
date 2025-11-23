@@ -37,19 +37,30 @@ public interface BuildSystemSbomGenerator {
      */
     String getBuildSystemName();
     
+
     /**
      * Generate the SBOM command for this build system
-     * @deprecated Use {@link #generateSbomCommand(String, File, Path)} instead
+     * @deprecated Use {@link #generateSbomCommand(String, File, Path, String)} instead
      */
     @Deprecated
-    String generateSbomCommand(String projectName, File outputDir);
-    
+    default String generateSbomCommand(String projectName, File outputDir) {
+        return generateSbomCommand(projectName, outputDir, null, "");
+    }
+
     /**
-     * Generate the SBOM command for this build system with the build file path.
-     * Default implementation delegates to the deprecated method for backward compatibility.
+     * Generate the SBOM command for this build system with the build file path and additional args.
+     * Default implementation delegates to the legacy method for backward compatibility.
      */
     default String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
-        return generateSbomCommand(projectName, outputDir);
+        return generateSbomCommand(projectName, outputDir, buildFile, "");
+    }
+
+    /**
+     * Generate the SBOM command for this build system with the build file path and additional args.
+     */
+    default String generateSbomCommand(String projectName, File outputDir, Path buildFile, String additionalArgs) {
+        // By default, ignore additionalArgs for backward compatibility
+        return generateSbomCommand(projectName, outputDir, buildFile);
     }
     
     /**

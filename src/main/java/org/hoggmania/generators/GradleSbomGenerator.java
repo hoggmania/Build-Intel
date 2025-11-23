@@ -55,16 +55,28 @@ public class GradleSbomGenerator implements BuildSystemSbomGenerator {
     
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
-        return String.format("gradle cyclonedxBom " +
-            "-PcyclonedxOutputFormat=json -PcyclonedxOutputDirectory=%s -PcyclonedxOutputName=%s-bom",
-            outputDir.getAbsolutePath(), projectName);
+        return generateSbomCommand(projectName, outputDir, null, "");
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
-        return String.format("gradle cyclonedxBom " +
-            "-PcyclonedxOutputFormat=json -PcyclonedxOutputDirectory=%s -PcyclonedxOutputName=%s-bom -b %s",
-            outputDir.getAbsolutePath(), projectName, buildFile.toAbsolutePath());
+        return generateSbomCommand(projectName, outputDir, buildFile, "");
+    }
+
+    @Override
+    public String generateSbomCommand(String projectName, File outputDir, Path buildFile, String additionalArgs) {
+        String base = "gradle cyclonedxBom " +
+            "-PcyclonedxOutputFormat=json -PcyclonedxOutputDirectory=%s -PcyclonedxOutputName=%s-bom";
+        String cmd;
+        if (buildFile != null) {
+            cmd = String.format(base + " -b %s", outputDir.getAbsolutePath(), projectName, buildFile.toAbsolutePath());
+        } else {
+            cmd = String.format(base, outputDir.getAbsolutePath(), projectName);
+        }
+        if (additionalArgs != null && !additionalArgs.isBlank()) {
+            cmd = cmd + " " + additionalArgs.trim();
+        }
+        return cmd;
     }
     
     @Override

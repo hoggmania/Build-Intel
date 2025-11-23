@@ -58,14 +58,26 @@ public class SbomCommand implements Runnable {
     @Parameters(index = "0", description = "Root directory to inspect.", defaultValue = "./")
     File rootDir;
 
-    @Option(names = "--output", description = "Output directory for SBOM file", defaultValue = "generated-sboms")
+    @Option(names = {"-o", "--output"}, description = "Output directory for SBOM file", defaultValue = "generated-sboms")
     File outputDir;
 
     @Option(names = "--dry-run", description = "Show which plugin would be used without executing")
     boolean dryRun;
 
-    @Option(names = "--merge", description = "Merge all generated SBOMs into a single file")
+    @Option(names = {"-m", "--merge"}, description = "Merge all generated SBOMs into a single file")
     boolean merge;
+
+    @Option(names = {"-j", "--json"}, description = "Output summary results to JSON file")
+    boolean jsonOutput;
+
+    @Option(names = {"-a","--additional-args"}, description = "Additional arguments to pass to the underlying build tool (e.g. Maven, npm, etc.)")
+    String additionalArgs = "";
+
+    @Option(names = {"-r", "--root"}, description = "Working directory for command execution (default: root directory)")
+    File rootWorkingDir;
+
+    @Option(names = {"-s", "--sbom-only"}, description = "Generate SBOM directly using Syft without build system detection")
+    boolean sbomOnly;
 
     @RegisterForReflection
     static class BuildSystemInfo {
@@ -122,6 +134,12 @@ public class SbomCommand implements Runnable {
             if (!outputDir.exists()) {
                 outputDir.mkdirs();
                 System.out.println("Created output directory: " + outputDir.getAbsolutePath());
+            }
+
+            // Handle SBOM-only mode - use Syft directly without build system detection
+            if (sbomOnly) {
+                generateSbomOnlyWithSyft();
+                return;
             }
 
             System.out.println("Inspecting environment at: " + rootDir.getAbsolutePath());
@@ -184,16 +202,16 @@ public class SbomCommand implements Runnable {
                     buildInfo.buildFiles.forEach(f -> System.out.println("  - " + f));
                     System.out.println("\nCommand to execute:");
                     if (isWindows) {
-                        System.out.println("  cmd.exe /c " + buildInfo.pluginCommand);
-                    } else {
-                        System.out.println("  sh -c " + buildInfo.pluginCommand);
-                    }
+                    System.out.println("  cmd.exe /c " + buildInfo.pluginCommand);
+                } else {
+                    System.out.println("  sh -c " + buildInfo.pluginCommand);
                 }
-                writeSummaryJson(buildSystems, true, new ArrayList<>());
-                return;
             }
-
-            System.out.println(ConsoleColors.bold("\n=== Generating SBOMs ==="));
+            if (jsonOutput) {
+                writeSummaryJson(buildSystems, true, new ArrayList<>());
+            }
+            return;
+        }            System.out.println(ConsoleColors.bold("\n=== Generating SBOMs ==="));
             List<Boolean> results = new ArrayList<>();
             List<SbomGenerationResult> generationResults = new ArrayList<>();
             for (BuildSystemInfo buildInfo : buildSystems) {
@@ -208,11 +226,13 @@ public class SbomCommand implements Runnable {
                 mergeSboms();
             }
 
-            // Always write summary JSON
-            writeSummaryJson(buildSystems, false, results);
-            
-            // Write aggregate log
-            writeAggregateLog(generationResults);
+            // Write summary JSON only if --json flag is specified
+            if (jsonOutput) {
+                writeSummaryJson(buildSystems, false, results);
+                
+                // Write aggregate log
+                writeAggregateLog(generationResults);
+            }
 
         } catch (IOException e) {
             throw new RuntimeException("Error inspecting environment", e);
@@ -236,13 +256,13 @@ public class SbomCommand implements Runnable {
         // buildFile is the root directory for binary scanner
         Path buildFile = jarBuildFiles.get(0);
         String projectName = jarGenerator.extractProjectName(buildFile);
-        String sbomCommand = jarGenerator.generateSbomCommand(projectName, outputDir, buildFile);
+        String sbomCommand = jarGenerator.generateSbomCommand(projectName, outputDir, buildFile, additionalArgs);
 
         BuildSystemInfo info = new BuildSystemInfo("Standalone Binaries", sbomCommand);
         info.buildFiles = Collections.singletonList(buildFile.toString());
         info.multiModule = false;
         info.projectName = projectName;
-        info.workingDirectory = buildFile.getParent();
+        info.workingDirectory = rootWorkingDir != null ? rootWorkingDir.toPath() : buildFile.getParent();
 
         return info;
     }
@@ -261,35 +281,190 @@ public class SbomCommand implements Runnable {
         for (Map.Entry<String, List<EnvScannerCommand.BuildSystemInstance>> entry : detailedBuildSystems.entrySet()) {
             String buildSystemName = entry.getKey();
             List<EnvScannerCommand.BuildSystemInstance> instances = entry.getValue();
-            
+
             // Process each instance (these are already filtered - child modules excluded)
             for (EnvScannerCommand.BuildSystemInstance instance : instances) {
                 // Get the generator for this build system
                 BuildSystemGeneratorRegistry.getGenerator(buildSystemName).ifPresent(generator -> {
                     Path buildFilePath = Paths.get(instance.getPath());
-                    
+
                     // Extract project name using generator
                     String projectName = generator.extractProjectName(buildFilePath);
-                    
-                    // Generate SBOM command using generator with absolute build file path
-                    String sbomCommand = generator.generateSbomCommand(projectName, outputDir, buildFilePath);
-                    
+
+                    // Generate SBOM command using generator with absolute build file path and additionalArgs
+                    String sbomCommand = generator.generateSbomCommand(projectName, outputDir, buildFilePath, additionalArgs);
+
                     // Create BuildSystemInfo
                     BuildSystemInfo info = new BuildSystemInfo(buildSystemName, sbomCommand);
                     info.buildFiles = Collections.singletonList(instance.getPath());
                     info.multiModule = instance.isMultiModule();
                     info.projectName = projectName;
-                    
+
                     // Set working directory to build file's parent directory
                     // (where settings.gradle/pom.xml/package.json etc. are located)
-                    info.workingDirectory = buildFilePath.getParent();
-                    
+                    // Override with user-provided rootWorkingDir if specified
+                    info.workingDirectory = rootWorkingDir != null ? rootWorkingDir.toPath() : buildFilePath.getParent();
+
                     buildSystems.add(info);
                 });
             }
         }
 
         return buildSystems;
+    }
+
+    /**
+     * Generate SBOM directly with Syft without build system detection.
+     * This mode scans the root directory and generates an SBOM using Syft.
+     */
+    private void generateSbomOnlyWithSyft() {
+        System.out.println(ConsoleColors.info("[SBOM-ONLY MODE]") + " Generating SBOM with Syft for: " + rootDir.getAbsolutePath());
+        
+        // Check if Syft is installed
+        System.out.println("Checking if Syft is installed...");
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        
+        try {
+            ProcessBuilder versionCheck = new ProcessBuilder();
+            if (isWindows) {
+                versionCheck.command("cmd.exe", "/c", "syft version");
+            } else {
+                versionCheck.command("sh", "-c", "syft version");
+            }
+            
+            Process versionProcess = versionCheck.start();
+            int versionExitCode = versionProcess.waitFor();
+            
+            if (versionExitCode != 0) {
+                System.err.println(ConsoleColors.error("[ERROR]") + " Syft is not installed or not in PATH.");
+                System.err.println("Please install Syft: https://github.com/anchore/syft");
+                return;
+            }
+            
+            System.out.println(ConsoleColors.success("[OK]") + " Syft is available");
+            
+        } catch (Exception e) {
+            System.err.println(ConsoleColors.error("[ERROR]") + " Failed to check for Syft: " + e.getMessage());
+            System.err.println("Please install Syft: https://github.com/anchore/syft");
+            return;
+        }
+        
+        // Determine project name from directory
+        String projectName = rootDir.getName();
+        if (projectName == null || projectName.isEmpty()) {
+            projectName = "project";
+        }
+        
+        // Construct Syft command
+        String outputFileName = projectName + "-bom.json";
+        File sbomFile = new File(outputDir, outputFileName);
+        
+        String syftCommand = String.format("syft scan dir:%s -o cyclonedx-json=%s",
+            rootDir.getAbsolutePath(),
+            sbomFile.getAbsolutePath());
+        
+        System.out.println("\nRunning Syft command:");
+        System.out.println("  " + syftCommand);
+        
+        try {
+            List<String> cmd = new ArrayList<>();
+            if (isWindows) {
+                cmd.add("cmd.exe");
+                cmd.add("/c");
+            } else {
+                cmd.add("sh");
+                cmd.add("-c");
+            }
+            cmd.add(syftCommand);
+            
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.directory(rootDir);
+            pb.redirectErrorStream(true);
+            
+            Process process = pb.start();
+            
+            // Capture output
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                    if (line.trim().length() > 0) {
+                        System.out.println("  " + line);
+                    }
+                }
+            }
+            
+            int exitCode = process.waitFor();
+            
+            if (exitCode == 0) {
+                System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " SBOM generated successfully");
+                
+                // Check if file exists and get size
+                if (sbomFile.exists()) {
+                    long fileSize = sbomFile.length();
+                    System.out.println("SBOM file: " + ConsoleColors.highlight(sbomFile.getAbsolutePath()));
+                    System.out.println("File size: " + fileSize + " bytes");
+                    
+                    // Write summary only if --json flag is specified
+                    if (jsonOutput) {
+                        writeSbomOnlySummary(projectName, sbomFile, fileSize, true, null);
+                    }
+                } else {
+                    System.err.println(ConsoleColors.warning("[WARNING]") + " SBOM file not found at expected location: " + sbomFile.getAbsolutePath());
+                    if (jsonOutput) {
+                        writeSbomOnlySummary(projectName, sbomFile, 0, false, "SBOM file not found at expected location");
+                    }
+                }
+            } else {
+                System.err.println("\n" + ConsoleColors.error("[ERROR]") + " Syft command failed with exit code: " + exitCode);
+                System.err.println("Output:\n" + output.toString());
+                if (jsonOutput) {
+                    writeSbomOnlySummary(projectName, sbomFile, 0, false, "Syft command failed with exit code: " + exitCode);
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println(ConsoleColors.error("[ERROR]") + " Failed to execute Syft: " + e.getMessage());
+            e.printStackTrace();
+            if (jsonOutput) {
+                writeSbomOnlySummary(projectName, sbomFile, 0, false, "Exception: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Write summary JSON for SBOM-only mode.
+     */
+    private void writeSbomOnlySummary(String projectName, File sbomFile, long fileSize, boolean success, String errorMessage) {
+        try {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("timestamp", new Date().toString());
+            summary.put("mode", "sbom-only");
+            summary.put("tool", "Syft");
+            summary.put("rootDirectory", rootDir.getAbsolutePath());
+            summary.put("outputDirectory", outputDir.getAbsolutePath());
+            summary.put("projectName", projectName);
+            summary.put("sbomFile", sbomFile.getAbsolutePath());
+            summary.put("success", success);
+            
+            if (success) {
+                summary.put("sbomFileSize", fileSize);
+            }
+            
+            if (errorMessage != null) {
+                summary.put("errorMessage", errorMessage);
+            }
+            
+            ObjectMapper mapper = new ObjectMapper();
+            File summaryFile = new File(outputDir, "sbom-summary.json");
+            mapper.writerWithDefaultPrettyPrinter().writeValue(summaryFile, summary);
+            System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " Summary written to " + 
+                ConsoleColors.highlight(summaryFile.getAbsolutePath()));
+                
+        } catch (IOException e) {
+            System.err.println(ConsoleColors.warning("[WARNING]") + " Failed to write summary file: " + e.getMessage());
+        }
     }
 
     /**
@@ -317,14 +492,18 @@ public class SbomCommand implements Runnable {
                     result.success = false;
                     result.errorMessage = "Syft is not installed or not in PATH. Please install Syft: https://github.com/anchore/syft";
                     System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
-                    writeSbomLogFile(result);
+                    if (jsonOutput) {
+                        writeSbomLogFile(result);
+                    }
                     return result;
                 }
             } catch (Exception e) {
                 result.success = false;
                 result.errorMessage = "Syft is not installed or not in PATH. Please install Syft: https://github.com/anchore/syft";
                 System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
-                writeSbomLogFile(result);
+                if (jsonOutput) {
+                    writeSbomLogFile(result);
+                }
                 return result;
             }
 
@@ -368,7 +547,9 @@ public class SbomCommand implements Runnable {
                 System.err.println(output);
             }
             
-            writeSbomLogFile(result);
+            if (jsonOutput) {
+                writeSbomLogFile(result);
+            }
             
         } catch (Exception e) {
             result.success = false;
@@ -376,7 +557,9 @@ public class SbomCommand implements Runnable {
             result.errorOutput = e.toString();
             System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
             e.printStackTrace();
-            writeSbomLogFile(result);
+            if (jsonOutput) {
+                writeSbomLogFile(result);
+            }
         }
         
         return result;
@@ -396,7 +579,9 @@ public class SbomCommand implements Runnable {
             result.errorMessage = "Build tool not available for " + buildInfo.buildSystem + 
                             "\nPlease ensure the required tool is installed and in your PATH";
             System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
-            writeSbomLogFile(result);
+            if (jsonOutput) {
+                writeSbomLogFile(result);
+            }
             return result;
         }
         
@@ -408,7 +593,8 @@ public class SbomCommand implements Runnable {
         }
         
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-        File workDir = buildInfo.workingDirectory != null ? buildInfo.workingDirectory.toFile() : rootDir;
+        File workDir = rootWorkingDir != null ? rootWorkingDir : 
+                      (buildInfo.workingDirectory != null ? buildInfo.workingDirectory.toFile() : rootDir);
         StringBuilder outputCapture = new StringBuilder();
         StringBuilder errorCapture = new StringBuilder();
         
@@ -488,7 +674,9 @@ public class SbomCommand implements Runnable {
                 System.err.println("\n" + ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
             }
             
-            writeSbomLogFile(result);
+            if (jsonOutput) {
+                writeSbomLogFile(result);
+            }
             return result;
             
         } catch (IOException | InterruptedException e) {
@@ -498,7 +686,9 @@ public class SbomCommand implements Runnable {
             result.errorOutput = errorCapture.toString();
             System.err.println(ConsoleColors.error("[ERROR]") + " " + result.errorMessage);
             e.printStackTrace();
-            writeSbomLogFile(result);
+            if (jsonOutput) {
+                writeSbomLogFile(result);
+            }
             return result;
         }
     }
@@ -650,7 +840,8 @@ public class SbomCommand implements Runnable {
 
     private boolean prepareGoModule(BuildSystemInfo buildInfo) {
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-        File workDir = buildInfo.workingDirectory != null ? buildInfo.workingDirectory.toFile() : rootDir;
+        File workDir = rootWorkingDir != null ? rootWorkingDir : 
+                      (buildInfo.workingDirectory != null ? buildInfo.workingDirectory.toFile() : rootDir);
         
         try {
             List<String> command = new ArrayList<>();
