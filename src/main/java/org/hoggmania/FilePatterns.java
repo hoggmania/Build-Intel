@@ -32,7 +32,7 @@ import java.util.Set;
  * Contains patterns for IaC tools, source code extensions, and container files.
  */
 public class FilePatterns {
-    
+
     /**
      * Non-build-system patterns (IaC and source code categories for reporting)
      */
@@ -58,7 +58,7 @@ public class FilePatterns {
         Map.entry("Shell", List.of("*.sh")),
         Map.entry("YAML/JSON Config", List.of("*.yaml", "*.yml", "*.json"))
     );
-    
+
     /**
      * Source code language extensions for file counting
      */
@@ -90,7 +90,7 @@ public class FilePatterns {
         "ps1", "psm1",                          // PowerShell
         "bat", "cmd"                            // Batch scripts
     );
-    
+
     /**
      * Container build files (exact filenames to match)
      */
@@ -101,7 +101,7 @@ public class FilePatterns {
         "docker-compose.yaml",
         ".dockerignore"
     );
-    
+
     /**
      * Common build output directories to exclude from scanning
      */
@@ -127,7 +127,7 @@ public class FilePatterns {
         ".svn",             // SVN
         ".hg"               // Mercurial
     );
-    
+
     private FilePatterns() {
         // Utility class - prevent instantiation
     }

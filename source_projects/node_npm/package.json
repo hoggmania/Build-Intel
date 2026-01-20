@@ -1,0 +1,6 @@
+{
+  "name": "node_npm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sample npm project"
+}

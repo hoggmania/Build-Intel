@@ -1,0 +1,5 @@
+[project]
+name = "python_uv"
+version = "0.1.0"
+description = "Sample uv project"
+requires-python = ">=3.11"

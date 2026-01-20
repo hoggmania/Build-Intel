@@ -32,35 +32,43 @@ import java.nio.file.Path;
 
 public class GoSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "Go"; 
+    public String getBuildSystemName() {
+        return "Go";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "go.mod"; 
+    public String getBuildFilePattern() {
+        return "go.mod";
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "go version"; 
+    public String getVersionCheckCommand() {
+        return "go version";
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         String outputFile = projectName + "-bom.json";
         return String.format("go list -m -json all > %s/%s",
             outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
         String outputFile = projectName + "-bom.json";
         // Go commands need to run in the directory with go.mod
-        return String.format("cd %s && go list -m -json all > %s/%s",
-            buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
+        String modFlag = useVendorMode(buildFile) ? "-mod=vendor " : "";
+        return String.format("cd %s && go list %s-m -json all > %s/%s",
+            buildFile.getParent().toAbsolutePath(), modFlag, outputDir.getAbsolutePath(), outputFile);
     }
-    
+
+    private boolean useVendorMode(Path buildFile) {
+        if (buildFile == null || buildFile.getParent() == null) {
+            return false;
+        }
+        return Files.isDirectory(buildFile.getParent().resolve("vendor"));
+    }
+
     @Override
     public String extractProjectName(Path goMod) {
         try {

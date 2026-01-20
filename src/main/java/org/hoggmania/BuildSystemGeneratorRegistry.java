@@ -34,27 +34,33 @@ import java.util.Optional;
  * Provides a single point to access build system-specific logic.
  */
 public class BuildSystemGeneratorRegistry {
-    
+
     private static final Map<String, BuildSystemSbomGenerator> GENERATORS = new HashMap<>();
-    
+
     static {
         // Register all build system generators
         registerGenerator(new MavenSbomGenerator());
         registerGenerator(new GradleSbomGenerator());
         registerGenerator(new NpmSbomGenerator());
+        registerGenerator(new YarnSbomGenerator());
+        registerGenerator(new PnpmSbomGenerator());
+        registerGenerator(new PipenvSbomGenerator());
+        registerGenerator(new PoetrySbomGenerator());
+        registerGenerator(new UvSbomGenerator());
+        registerGenerator(new CondaSbomGenerator());
         registerGenerator(new PythonSbomGenerator());
         registerGenerator(new GoSbomGenerator());
         registerGenerator(new DotnetSbomGenerator());
         registerGenerator(new RustSbomGenerator());
         registerGenerator(new PhpSbomGenerator());
         registerGenerator(new RubySbomGenerator());
-        registerGenerator(new JarSbomGenerator());
+        registerGenerator(new BinaryOnlySbomGenerator());
     }
-    
+
     private static void registerGenerator(BuildSystemSbomGenerator generator) {
         GENERATORS.put(generator.getBuildSystemName(), generator);
     }
-    
+
     /**
      * Get a build system generator by name
      * @param buildSystemName The name of the build system (e.g., "Maven", "Gradle")
@@ -63,7 +69,7 @@ public class BuildSystemGeneratorRegistry {
     public static Optional<BuildSystemSbomGenerator> getGenerator(String buildSystemName) {
         return Optional.ofNullable(GENERATORS.get(buildSystemName));
     }
-    
+
     /**
      * Get all registered generators
      * @return Map of build system names to their generators
@@ -71,7 +77,7 @@ public class BuildSystemGeneratorRegistry {
     public static Map<String, BuildSystemSbomGenerator> getAllGenerators() {
         return new HashMap<>(GENERATORS);
     }
-    
+
     /**
      * Check if a build system is supported
      * @param buildSystemName The name of the build system

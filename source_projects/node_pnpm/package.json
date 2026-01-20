@@ -1,0 +1,6 @@
+{
+  "name": "node_pnpm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sample pnpm project"
+}

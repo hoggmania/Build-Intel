@@ -34,25 +34,25 @@ import java.util.List;
 
 public class NpmSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "npm"; 
+    public String getBuildSystemName() {
+        return "npm";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "package.json"; 
+    public String getBuildFilePattern() {
+        return "package.json";
     }
-    
+
     @Override
     public List<String> getExcludedDirectories() {
         return Arrays.asList("node_modules");
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "npm --version"; 
+    public String getVersionCheckCommand() {
+        return "npm --version";
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         return generateSbomCommand(projectName, outputDir, null, "");
@@ -68,8 +68,14 @@ public class NpmSbomGenerator implements BuildSystemSbomGenerator {
         String outputFile = projectName + "-bom.json";
         String base;
         if (buildFile != null) {
-            base = String.format("npm sbom --sbom-format=cyclonedx --package-lock-only --prefix %s > %s/%s",
-                buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
+            Path root = buildFile.getParent();
+            boolean hasNodeModules = Files.isDirectory(root.resolve("node_modules"));
+            boolean hasLockFile = Files.exists(root.resolve("package-lock.json"))
+                || Files.exists(root.resolve("npm-shrinkwrap.json"));
+            String lockOnly = (!hasNodeModules && hasLockFile) ? " --package-lock-only" : "";
+            String workspaces = hasWorkspaces(buildFile) ? " --workspaces" : "";
+            base = String.format("npm sbom --sbom-format=cyclonedx%s%s --prefix %s > %s/%s",
+                lockOnly, workspaces, root.toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
         } else {
             base = String.format("npm sbom --sbom-format=cyclonedx > %s/%s",
                 outputDir.getAbsolutePath(), outputFile);
@@ -85,7 +91,20 @@ public class NpmSbomGenerator implements BuildSystemSbomGenerator {
         }
         return base;
     }
-    
+
+    private boolean hasWorkspaces(Path buildFile) {
+        try {
+            Path packageJson = buildFile.getParent().resolve("package.json");
+            if (!Files.exists(packageJson)) {
+                return false;
+            }
+            String content = Files.readString(packageJson);
+            return content.contains("\"workspaces\"");
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     @Override
     public String extractProjectName(Path packageJson) {
         try {
@@ -108,7 +127,7 @@ public class NpmSbomGenerator implements BuildSystemSbomGenerator {
         }
         return "npm-project";
     }
-    
+
     @Override
     public String mapErrorMessage(String errorOutput, int exitCode) {
         if (errorOutput.contains("Did you forget to run `npm install`")) {

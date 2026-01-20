@@ -1,0 +1,6 @@
+{
+  "name": "node_yarn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sample Yarn project"
+}

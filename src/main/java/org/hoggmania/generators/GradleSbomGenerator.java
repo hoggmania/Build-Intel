@@ -34,25 +34,25 @@ import java.util.List;
 
 public class GradleSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "Gradle"; 
+    public String getBuildSystemName() {
+        return "Gradle";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "build.gradle"; 
+    public String getBuildFilePattern() {
+        return "build.gradle";
     }
-    
+
     @Override
     public List<String> getAdditionalBuildFilePatterns() {
         return Arrays.asList("build.gradle.kts");
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "gradle --version"; 
+    public String getVersionCheckCommand() {
+        return "gradle --version";
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         return generateSbomCommand(projectName, outputDir, null, "");
@@ -69,7 +69,8 @@ public class GradleSbomGenerator implements BuildSystemSbomGenerator {
             "-PcyclonedxOutputFormat=json -PcyclonedxOutputDirectory=%s -PcyclonedxOutputName=%s-bom";
         String cmd;
         if (buildFile != null) {
-            cmd = String.format(base + " -b %s", outputDir.getAbsolutePath(), projectName, buildFile.toAbsolutePath());
+            Path projectDir = buildFile.getParent();
+            cmd = String.format(base + " -p %s", outputDir.getAbsolutePath(), projectName, projectDir.toAbsolutePath());
         } else {
             cmd = String.format(base, outputDir.getAbsolutePath(), projectName);
         }
@@ -78,14 +79,14 @@ public class GradleSbomGenerator implements BuildSystemSbomGenerator {
         }
         return cmd;
     }
-    
+
     @Override
     public String extractProjectName(Path buildFile) {
         Path settingsFile = buildFile.getParent().resolve("settings.gradle");
         if (!Files.exists(settingsFile)) {
             settingsFile = buildFile.getParent().resolve("settings.gradle.kts");
         }
-        
+
         if (Files.exists(settingsFile)) {
             try {
                 String content = Files.readString(settingsFile);
@@ -112,7 +113,7 @@ public class GradleSbomGenerator implements BuildSystemSbomGenerator {
         }
         return buildFile.getParent().getFileName().toString();
     }
-    
+
     @Override
     public boolean isMultiModule(List<Path> buildFiles) {
         for (Path buildFile : buildFiles) {
@@ -120,7 +121,7 @@ public class GradleSbomGenerator implements BuildSystemSbomGenerator {
             if (!Files.exists(settingsFile)) {
                 settingsFile = buildFile.getParent().resolve("settings.gradle.kts");
             }
-            
+
             if (Files.exists(settingsFile)) {
                 try {
                     String content = Files.readString(settingsFile);

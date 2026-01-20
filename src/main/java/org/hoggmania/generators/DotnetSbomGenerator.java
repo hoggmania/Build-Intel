@@ -24,53 +24,61 @@
 package org.hoggmania.generators;
 
 import org.hoggmania.BuildSystemSbomGenerator;
+import org.hoggmania.ToolRequirement;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class DotnetSbomGenerator implements BuildSystemSbomGenerator {
-    
+
     @Override
-    public String getBuildSystemName() { 
-        return ".NET"; 
+    public String getBuildSystemName() {
+        return ".NET";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "*.csproj"; 
+    public String getBuildFilePattern() {
+        return "*.csproj";
     }
-    
+
     @Override
     public List<String> getAdditionalBuildFilePatterns() {
         return Arrays.asList("*.vbproj", "*.fsproj", "*.sln");
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "dotnet --version"; 
+    public String getVersionCheckCommand() {
+        return "dotnet --version";
     }
-    
+
+    @Override
+    public List<ToolRequirement> getRequiredTools(Path buildFile) {
+        List<ToolRequirement> tools = new ArrayList<>();
+        tools.add(new ToolRequirement("dotnet", "dotnet --version", null));
+        tools.add(new ToolRequirement("CycloneDX", "dotnet CycloneDX --version", "dotnet tool install --global CycloneDX"));
+        return tools;
+    }
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         // Note: For .NET, the actual project file name is needed at generation time
         // This will be handled by passing the build file info
-        return String.format("dotnet CycloneDX -o %s -f json -n %s-bom",
+        return String.format("dotnet CycloneDX -o %s --output-format json -fn %s-bom.json",
             outputDir.getAbsolutePath(), projectName);
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
-        // Use --json flag and -o for output file path (not directory)
-        // The tool expects full output path including filename
-        String outputFile = new File(outputDir, projectName + "-bom.json").getAbsolutePath();
-        return String.format("dotnet CycloneDX %s --json -o %s",
-            buildFile.toAbsolutePath(), outputFile);
+        String outputFile = projectName + "-bom.json";
+        return String.format("dotnet CycloneDX %s --output-format json -o %s -fn %s",
+            buildFile.toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String extractProjectName(Path projectFile) {
         try {
@@ -88,7 +96,7 @@ public class DotnetSbomGenerator implements BuildSystemSbomGenerator {
         String fileName = projectFile.getFileName().toString();
         return fileName.substring(0, fileName.lastIndexOf('.'));
     }
-    
+
     @Override
     public String mapErrorMessage(String errorOutput, int exitCode) {
         if (errorOutput.contains("contains more than one project file")) {

@@ -33,20 +33,20 @@ import java.util.List;
 
 public class MavenSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "Maven"; 
+    public String getBuildSystemName() {
+        return "Maven";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "pom.xml"; 
+    public String getBuildFilePattern() {
+        return "pom.xml";
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "mvn --version"; 
+    public String getVersionCheckCommand() {
+        return "mvn --version";
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         return generateSbomCommand(projectName, outputDir, null, "");
@@ -72,7 +72,7 @@ public class MavenSbomGenerator implements BuildSystemSbomGenerator {
         }
         return cmd;
     }
-    
+
     @Override
     public String extractProjectName(Path pomFile) {
         try {
@@ -89,7 +89,7 @@ public class MavenSbomGenerator implements BuildSystemSbomGenerator {
         }
         return "maven-project";
     }
-    
+
     @Override
     public boolean isMultiModule(List<Path> pomFiles) {
         if (pomFiles.size() <= 1) return false;

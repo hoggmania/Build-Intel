@@ -1,0 +1,11 @@
+plugins {
+    id 'java'
+    id 'org.cyclonedx.bom' version '3.1.0'
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.cyclonedx.bom'
+    group = 'com.example.samples'
+    version = '0.1.0'
+}

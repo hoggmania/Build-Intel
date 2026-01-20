@@ -1,0 +1,5 @@
+name: python_conda
+channels:
+  - defaults
+dependencies:
+  - python=3.11

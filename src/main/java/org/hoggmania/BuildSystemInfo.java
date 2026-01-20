@@ -45,26 +45,26 @@ public class BuildSystemInfo {
         this.buildFiles = new ArrayList<>();
         this.projectName = "project";
     }
-    
+
     // Getters and setters for reflection
     public String getBuildSystem() { return buildSystem; }
     public void setBuildSystem(String buildSystem) { this.buildSystem = buildSystem; }
-    
+
     public String getPluginCommand() { return pluginCommand; }
     public void setPluginCommand(String pluginCommand) { this.pluginCommand = pluginCommand; }
-    
+
     public String getVersion() { return version; }
     public void setVersion(String version) { this.version = version; }
-    
+
     public boolean isMultiModule() { return multiModule; }
     public void setMultiModule(boolean multiModule) { this.multiModule = multiModule; }
-    
+
     public List<String> getBuildFiles() { return buildFiles; }
     public void setBuildFiles(List<String> buildFiles) { this.buildFiles = buildFiles; }
-    
+
     public String getProjectName() { return projectName; }
     public void setProjectName(String projectName) { this.projectName = projectName; }
-    
+
     public Path getWorkingDirectory() { return workingDirectory; }
     public void setWorkingDirectory(Path workingDirectory) { this.workingDirectory = workingDirectory; }
 }

@@ -24,42 +24,69 @@
 package org.hoggmania.generators;
 
 import org.hoggmania.BuildSystemSbomGenerator;
+import org.hoggmania.ToolRequirement;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RustSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "Rust"; 
+    public String getBuildSystemName() {
+        return "Rust";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "Cargo.toml"; 
+    public String getBuildFilePattern() {
+        return "Cargo.toml";
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "cargo --version"; 
+    public String getVersionCheckCommand() {
+        return "cargo --version";
     }
-    
+
+    @Override
+    public List<ToolRequirement> getRequiredTools(Path buildFile) {
+        List<ToolRequirement> tools = new ArrayList<>();
+        tools.add(new ToolRequirement("cargo", "cargo --version", null));
+        tools.add(new ToolRequirement("cargo-cyclonedx", "cargo cyclonedx --version", "cargo install cargo-cyclonedx"));
+        return tools;
+    }
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         String outputFile = projectName + "-bom.json";
-        return String.format("cargo cyclonedx -f json --output-file %s/%s",
-            outputDir.getAbsolutePath(), outputFile);
+        String overrideName = projectName + "-bom";
+        String base = String.format("cargo cyclonedx -f json --override-filename %s", overrideName);
+        return appendMoveCommand(base, Path.of(outputFile), new File(outputDir, outputFile));
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
         String outputFile = projectName + "-bom.json";
-        return String.format("cargo cyclonedx -f json --manifest-path %s --output-file %s/%s",
-            buildFile.toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
+        String overrideName = projectName + "-bom";
+        Path root = buildFile != null ? buildFile.getParent() : null;
+        String manifestArg = buildFile != null ? " --manifest-path " + buildFile.toAbsolutePath() : "";
+        String base = String.format("cargo cyclonedx -f json%s --override-filename %s", manifestArg, overrideName);
+        Path source = root != null ? root.resolve(outputFile) : Path.of(outputFile);
+        return appendMoveCommand(base, source, new File(outputDir, outputFile));
     }
-    
+
+    private String appendMoveCommand(String baseCommand, Path source, File destination) {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        String moveCommand;
+        if (isWindows) {
+            moveCommand = String.format("move /Y \"%s\" \"%s\"", source.toAbsolutePath(), destination.getAbsolutePath());
+        } else {
+            moveCommand = String.format("mv -f \"%s\" \"%s\"", source.toAbsolutePath(), destination.getAbsolutePath());
+        }
+        return baseCommand + " && " + moveCommand;
+    }
+
     @Override
     public String extractProjectName(Path cargoToml) {
         try {

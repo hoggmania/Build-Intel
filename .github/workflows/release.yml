@@ -56,12 +56,12 @@ jobs:
           CURRENT_VERSION="${{ steps.current_version.outputs.current_version }}"
           # Remove -SNAPSHOT if present
           BASE_VERSION=${CURRENT_VERSION%-SNAPSHOT}
-          
+
           IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
           MAJOR="${VERSION_PARTS[0]}"
           MINOR="${VERSION_PARTS[1]}"
           PATCH="${VERSION_PARTS[2]}"
-          
+
           case "${{ inputs.version-type }}" in
             major)
               MAJOR=$((MAJOR + 1))
@@ -76,15 +76,15 @@ jobs:
               PATCH=$((PATCH + 1))
               ;;
           esac
-          
+
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           NEXT_SNAPSHOT="${MAJOR}.${MINOR}.$((PATCH + 1))-SNAPSHOT"
           TAG_NAME="v${NEW_VERSION}"
-          
+
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "next_snapshot=$NEXT_SNAPSHOT" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          
+
           echo "New version: $NEW_VERSION"
           echo "Next snapshot: $NEXT_SNAPSHOT"
           echo "Tag name: $TAG_NAME"
@@ -133,3 +133,123 @@ jobs:
           check-name: 'build-native'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
+
+  create-release:
+    needs: wait-for-builds
+    if: inputs.create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes from commits
+        id: release_notes
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.bump-version.outputs.tag_name }}"
+          git fetch --tags --force
+
+          PREV_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS="$(git log --pretty=format:"%s" "${PREV_TAG}..${TAG}")"
+          else
+            COMMITS="$(git log --pretty=format:"%s" "${TAG}")"
+          fi
+
+          FEATURES=""
+          FIXES=""
+          DOCS=""
+          REFACTOR=""
+          PERF=""
+          TESTS=""
+          BUILD=""
+          CI=""
+          CHORE=""
+          OTHER=""
+
+          while IFS= read -r SUBJECT; do
+            [ -z "$SUBJECT" ] && continue
+            case "$SUBJECT" in
+              feat:*|feat\(*\):*)
+                FEATURES="$FEATURES"$'\n'"- ${SUBJECT}"
+                ;;
+              fix:*|fix\(*\):*)
+                FIXES="$FIXES"$'\n'"- ${SUBJECT}"
+                ;;
+              docs:*|docs\(*\):*)
+                DOCS="$DOCS"$'\n'"- ${SUBJECT}"
+                ;;
+              refactor:*|refactor\(*\):*)
+                REFACTOR="$REFACTOR"$'\n'"- ${SUBJECT}"
+                ;;
+              perf:*|perf\(*\):*)
+                PERF="$PERF"$'\n'"- ${SUBJECT}"
+                ;;
+              test:*|test\(*\):*)
+                TESTS="$TESTS"$'\n'"- ${SUBJECT}"
+                ;;
+              build:*|build\(*\):*)
+                BUILD="$BUILD"$'\n'"- ${SUBJECT}"
+                ;;
+              ci:*|ci\(*\):*)
+                CI="$CI"$'\n'"- ${SUBJECT}"
+                ;;
+              chore:*|chore\(*\):*)
+                CHORE="$CHORE"$'\n'"- ${SUBJECT}"
+                ;;
+              *)
+                OTHER="$OTHER"$'\n'"- ${SUBJECT}"
+                ;;
+            esac
+          done <<< "$COMMITS"
+
+          NOTES=""
+          if [ -n "$FEATURES" ]; then
+            NOTES="$NOTES"$'## Features\n'"${FEATURES#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$FIXES" ]; then
+            NOTES="$NOTES"$'## Fixes\n'"${FIXES#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$DOCS" ]; then
+            NOTES="$NOTES"$'## Docs\n'"${DOCS#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$REFACTOR" ]; then
+            NOTES="$NOTES"$'## Refactor\n'"${REFACTOR#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$PERF" ]; then
+            NOTES="$NOTES"$'## Performance\n'"${PERF#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$TESTS" ]; then
+            NOTES="$NOTES"$'## Tests\n'"${TESTS#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$BUILD" ]; then
+            NOTES="$NOTES"$'## Build\n'"${BUILD#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$CI" ]; then
+            NOTES="$NOTES"$'## CI\n'"${CI#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$CHORE" ]; then
+            NOTES="$NOTES"$'## Chore\n'"${CHORE#"$'\n'"}"$'\n\n'
+          fi
+          if [ -n "$OTHER" ]; then
+            NOTES="$NOTES"$'## Other\n'"${OTHER#"$'\n'"}"$'\n\n'
+          fi
+
+          if [ -z "$NOTES" ]; then
+            NOTES="- No changes detected."
+          fi
+
+          {
+            echo "release_body<<'EOF'"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag_name }}
+          body: ${{ steps.release_notes.outputs.release_body }}

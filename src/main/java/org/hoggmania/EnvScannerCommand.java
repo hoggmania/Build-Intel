@@ -30,6 +30,7 @@ import io.quarkus.picocli.runtime.annotations.TopCommand;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import picocli.CommandLine.Option;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.*;
@@ -85,16 +86,16 @@ public class EnvScannerCommand implements Runnable {
     public void run() {
         try {
             Map<String, List<Path>> foundFiles = scanFiles(rootWorkingDir.toPath());
-            
+
             // Detect multi-module builds (legacy, kept for backward compatibility)
             Map<String, Boolean> multiModuleInfo = detectMultiModuleBuilds(foundFiles);
-            
+
             // Detect detailed build system instances with multi-module filtering
             Map<String, List<BuildSystemInstance>> detailedBuildSystems = detectDetailedBuildSystems(foundFiles);
-            
+
             Map<String, ToolVersionInfo> toolVersions = detectBuildToolVersions(foundFiles.keySet());
             Map<String, Long> fileTypeCounts = countSourceFiles(rootWorkingDir.toPath());
-            
+
             // Calculate percentages and create FileTypeInfo objects
             long totalFiles = fileTypeCounts.values().stream().mapToLong(Long::longValue).sum();
             Map<String, FileTypeInfo> fileTypeStats = new LinkedHashMap<>();
@@ -236,27 +237,27 @@ public class EnvScannerCommand implements Runnable {
         System.out.println(ConsoleColors.bold("\nBuild Environment Intelligence Scanner"));
         System.out.println(ConsoleColors.bold("====================================="));
         System.out.println("\nScanned directory: " + ConsoleColors.highlight(rootWorkingDir.getAbsolutePath()));
-        
+
         // Display detailed build system instances
-        Map<String, List<BuildSystemInstance>> buildSystemInstances = 
+        Map<String, List<BuildSystemInstance>> buildSystemInstances =
             (Map<String, List<BuildSystemInstance>>) result.get("buildSystemInstances");
-        
+
         if (buildSystemInstances != null && !buildSystemInstances.isEmpty()) {
             System.out.println(ConsoleColors.bold("\nBuild Systems Detected:"));
             buildSystemInstances.forEach((buildSystem, instances) -> {
                 System.out.println("\n   " + ConsoleColors.info(buildSystem) + ":");
                 for (BuildSystemInstance instance : instances) {
-                    String status = instance.isMultiModule() ? 
-                        ConsoleColors.success("[Multi-Module Root]") : 
+                    String status = instance.isMultiModule() ?
+                        ConsoleColors.success("[Multi-Module Root]") :
                         ConsoleColors.info("[Standalone]");
                     System.out.println("      " + status + " " + instance.getPath());
                 }
             });
         }
-        
+
         System.out.println(ConsoleColors.bold("\nTool Versions:"));
         ((Map<String, ToolVersionInfo>) result.get("toolVersions")).forEach((tool, versionInfo) -> {
-            String detected = versionInfo.isDetected() ? 
+            String detected = versionInfo.isDetected() ?
                 ConsoleColors.success("[OK]") : ConsoleColors.error("[NOT FOUND]");
             System.out.println("   " + tool + ": " + detected);
             if (versionInfo.isDetected()) {
@@ -271,19 +272,19 @@ public class EnvScannerCommand implements Runnable {
                 System.out.println("      " + ConsoleColors.warning(versionInfo.getVersionInfo()));
             }
         });
-        
+
         System.out.println(ConsoleColors.bold("\nFile Type Counts:"));
         Map<String, FileTypeInfo> fileTypeCounts = (Map<String, FileTypeInfo>) result.get("fileTypeCounts");
         fileTypeCounts.forEach((type, info) -> {
             System.out.println(String.format("   %s: %d (%.2f%%)", type, info.getCount(), info.getPercentage()));
         });
-        
+
         // Generate JSON file only if --json flag is specified
         if (jsonOutput) {
             ObjectMapper mapper = new ObjectMapper();
             File jsonFile = output != null ? output : new File("scan-results.json");
             mapper.writerWithDefaultPrettyPrinter().writeValue(jsonFile, result);
-            System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " JSON results written to " + 
+            System.out.println("\n" + ConsoleColors.success("[SUCCESS]") + " JSON results written to " +
                 ConsoleColors.highlight(jsonFile.getAbsolutePath()));
         }
     }
@@ -291,9 +292,9 @@ public class EnvScannerCommand implements Runnable {
     /**
      * Scan files in the given directory for build systems, IaC, and source code.
      * Public method that can be used by other commands like SbomCommand.
-     * 
+     *
      * Uses BuildSystemGeneratorRegistry to get build file patterns from generators.
-     * 
+     *
      * @param root Root directory to scan
      * @return Map of build system/file type names to list of matching file paths
      * @throws IOException if scanning fails
@@ -301,45 +302,154 @@ public class EnvScannerCommand implements Runnable {
     public Map<String, List<Path>> scanFiles(Path root) throws IOException {
         Map<String, List<Path>> found = new HashMap<>();
         Set<String> excludeDirs = getExcludedDirectories();
-        
+
         // Scan for build systems using registry
         for (BuildSystemSbomGenerator generator : BuildSystemGeneratorRegistry.getAllGenerators().values()) {
             String buildSystemName = generator.getBuildSystemName();
             List<Path> matches = new ArrayList<>();
-            
+
             // Get all patterns for this build system
             List<String> patterns = new ArrayList<>();
             patterns.add(generator.getBuildFilePattern());
             patterns.addAll(generator.getAdditionalBuildFilePatterns());
-            
+
             // Search for each pattern
             for (String pattern : patterns) {
                 try (var stream = Files.find(root, Integer.MAX_VALUE,
-                        (p, attr) -> !shouldExcludePath(p, excludeDirs) && 
+                        (p, attr) -> !shouldExcludePath(p, excludeDirs) &&
                                      p.getFileName().toString().matches(globToRegex(pattern)))) {
                     matches.addAll(stream.collect(Collectors.toList()));
                 }
             }
-            
+
             if (!matches.isEmpty()) {
                 found.put(buildSystemName, matches);
             }
         }
-        
+
+        applyPackageManagerOverrides(found);
+        applyPythonManagerOverrides(found);
+        collapseNpmWorkspaces(found);
+
         // Scan for non-build-system patterns (IaC and source code)
         for (var entry : FilePatterns.NON_BUILD_SYSTEM_PATTERNS.entrySet()) {
             List<Path> matches = new ArrayList<>();
             for (String pattern : entry.getValue()) {
                 try (var stream = Files.find(root, Integer.MAX_VALUE,
-                        (p, attr) -> !shouldExcludePath(p, excludeDirs) && 
+                        (p, attr) -> !shouldExcludePath(p, excludeDirs) &&
                                      p.getFileName().toString().matches(globToRegex(pattern)))) {
                     matches.addAll(stream.collect(Collectors.toList()));
                 }
             }
             if (!matches.isEmpty()) found.put(entry.getKey(), matches);
         }
-        
+
         return found;
+    }
+
+    private void applyPackageManagerOverrides(Map<String, List<Path>> found) {
+        filterPackageManager(found, "pnpm", "Yarn", "npm");
+        filterPackageManager(found, "Yarn", "npm");
+    }
+
+    private void applyPythonManagerOverrides(Map<String, List<Path>> found) {
+        filterPackageManager(found, "uv", "Poetry", "Pipenv", "Conda", "Python");
+        filterPackageManager(found, "Poetry", "Pipenv", "Conda", "Python");
+        filterPackageManager(found, "Pipenv", "Conda", "Python");
+        filterPackageManager(found, "Conda", "Python");
+    }
+
+    private void collapseNpmWorkspaces(Map<String, List<Path>> found) {
+        List<Path> npmFiles = found.get("npm");
+        if (npmFiles == null || npmFiles.isEmpty()) {
+            return;
+        }
+        Set<Path> workspaceRoots = findNpmWorkspaceRoots(npmFiles);
+        if (workspaceRoots.isEmpty()) {
+            return;
+        }
+
+        List<Path> filtered = npmFiles.stream()
+            .filter(path -> !isWorkspaceChild(path, workspaceRoots))
+            .collect(Collectors.toList());
+
+        if (filtered.isEmpty()) {
+            found.remove("npm");
+        } else {
+            found.put("npm", filtered);
+        }
+    }
+
+    private Set<Path> findNpmWorkspaceRoots(List<Path> packageJsonFiles) {
+        ObjectMapper mapper = new ObjectMapper();
+        Set<Path> roots = new LinkedHashSet<>();
+        for (Path packageJson : packageJsonFiles) {
+            try {
+                JsonNode node = mapper.readTree(packageJson.toFile());
+                if (node != null && node.has("workspaces")) {
+                    Path root = packageJson.getParent();
+                    if (root != null) {
+                        roots.add(root);
+                    }
+                }
+            } catch (IOException e) {
+                // Ignore invalid package.json files
+            }
+        }
+        return roots;
+    }
+
+    private boolean isWorkspaceChild(Path packageJson, Set<Path> workspaceRoots) {
+        Path parent = packageJson.getParent();
+        if (parent == null) {
+            return false;
+        }
+        for (Path root : workspaceRoots) {
+            if (parent.startsWith(root) && !parent.equals(root)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void filterPackageManager(Map<String, List<Path>> found, String preferred, String... suppressed) {
+        List<Path> preferredFiles = found.get(preferred);
+        if (preferredFiles == null || preferredFiles.isEmpty()) {
+            return;
+        }
+
+        Set<Path> preferredRoots = preferredFiles.stream()
+            .map(Path::getParent)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        for (String target : suppressed) {
+            List<Path> candidates = found.get(target);
+            if (candidates == null || candidates.isEmpty()) {
+                continue;
+            }
+            List<Path> filtered = candidates.stream()
+                .filter(path -> !isUnderAnyRoot(path, preferredRoots))
+                .collect(Collectors.toList());
+            if (filtered.isEmpty()) {
+                found.remove(target);
+            } else {
+                found.put(target, filtered);
+            }
+        }
+    }
+
+    private boolean isUnderAnyRoot(Path path, Set<Path> roots) {
+        Path parent = path.getParent();
+        if (parent == null) {
+            return false;
+        }
+        for (Path root : roots) {
+            if (parent.startsWith(root)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String globToRegex(String glob) {
@@ -354,7 +464,7 @@ public class EnvScannerCommand implements Runnable {
     // Check if a path should be excluded from scanning
     private boolean shouldExcludePath(Path path, Set<String> excludeDirs) {
         return path.toString().contains(File.separator) &&
-               excludeDirs.stream().anyMatch(dir -> 
+               excludeDirs.stream().anyMatch(dir ->
                    path.toString().contains(File.separator + dir + File.separator) ||
                    path.toString().endsWith(File.separator + dir)
                );
@@ -363,27 +473,27 @@ public class EnvScannerCommand implements Runnable {
     /**
      * Detect if the found build systems are configured for multi-module builds.
      * Public method that can be used by other commands like SbomCommand.
-     * 
+     *
      * Uses the BuildSystemGeneratorRegistry to delegate multi-module detection
      * to build system-specific implementations.
-     * 
+     *
      * @param foundFiles Map of build system names to their file paths
      * @return Map of build system names to their multi-module status (true/false)
      */
     public Map<String, Boolean> detectMultiModuleBuilds(Map<String, List<Path>> foundFiles) {
         Map<String, Boolean> multiModuleInfo = new LinkedHashMap<>();
-        
+
         // Use generators from registry for multi-module detection
         for (Map.Entry<String, List<Path>> entry : foundFiles.entrySet()) {
             String buildSystemName = entry.getKey();
             List<Path> buildFiles = entry.getValue();
-            
+
             BuildSystemGeneratorRegistry.getGenerator(buildSystemName).ifPresent(generator -> {
                 boolean isMultiModule = generator.isMultiModule(buildFiles);
                 multiModuleInfo.put(buildSystemName, isMultiModule);
             });
         }
-        
+
         return multiModuleInfo;
     }
 
@@ -392,20 +502,20 @@ public class EnvScannerCommand implements Runnable {
      * For each build system, identify all build file instances and determine:
      * 1. Which files are multi-module roots
      * 2. Which files should be excluded (under a multi-module root)
-     * 
+     *
      * @param foundFiles Map of build system names to their file paths
      * @return Map of build system names to list of instances (with multi-module filtering applied)
      */
     public Map<String, List<BuildSystemInstance>> detectDetailedBuildSystems(Map<String, List<Path>> foundFiles) {
         Map<String, List<BuildSystemInstance>> detailedInfo = new LinkedHashMap<>();
-        
+
         for (Map.Entry<String, List<Path>> entry : foundFiles.entrySet()) {
             String buildSystemName = entry.getKey();
             List<Path> buildFiles = entry.getValue();
-            
+
             BuildSystemGeneratorRegistry.getGenerator(buildSystemName).ifPresent(generator -> {
                 List<BuildSystemInstance> instances = new ArrayList<>();
-                
+
                 // First pass: identify multi-module roots by checking each file for multi-module markers
                 Map<Path, List<String>> multiModuleRootsWithModules = new LinkedHashMap<>();
                 for (Path buildFile : buildFiles) {
@@ -414,75 +524,75 @@ public class EnvScannerCommand implements Runnable {
                         multiModuleRootsWithModules.put(buildFile.getParent(), moduleNames);
                     }
                 }
-                
+
                 // Second pass: create instances, excluding files that are declared child modules
                 for (Path buildFile : buildFiles) {
                     Path buildFileParent = buildFile.getParent();
-                    
+
                     // Check if this file is a child module of any multi-module root
                     boolean isChildModule = false;
-                    
+
                     for (Map.Entry<Path, List<String>> rootEntry : multiModuleRootsWithModules.entrySet()) {
                         Path rootDir = rootEntry.getKey();
                         List<String> moduleNames = rootEntry.getValue();
-                        
+
                         // If buildFileParent starts with rootDir and is not the same
                         if (buildFileParent.startsWith(rootDir) && !buildFileParent.equals(rootDir)) {
                             // Check if this is actually a declared child module
                             String relativePath = rootDir.relativize(buildFileParent).toString();
                             // Normalize path separators for comparison
                             String normalizedPath = relativePath.replace(File.separator, "/");
-                            
+
                             for (String moduleName : moduleNames) {
                                 String normalizedModule = moduleName.replace(File.separator, "/");
-                                if (normalizedPath.equals(normalizedModule) || 
+                                if (normalizedPath.equals(normalizedModule) ||
                                     normalizedPath.startsWith(normalizedModule + "/")) {
                                     isChildModule = true;
                                     break;
                                 }
                             }
-                            
+
                             if (isChildModule) break;
                         }
                     }
-                    
+
                     // Skip files that are declared child modules
                     if (isChildModule) {
                         continue;
                     }
-                    
+
                     // Determine if this specific file is a multi-module root
                     boolean isMultiModule = isFileMultiModule(buildFile, buildSystemName);
-                    
+
                     instances.add(new BuildSystemInstance(
                         buildFile.toString(),
                         isMultiModule,
                         isMultiModule // If it's multi-module, it's a root
                     ));
                 }
-                
+
                 if (!instances.isEmpty()) {
                     detailedInfo.put(buildSystemName, instances);
                 }
             });
         }
-        
+
         return detailedInfo;
     }
 
     /**
      * Extract module names from a multi-module build file.
-     * 
+     *
      * @param buildFile The build file to parse
      * @param buildSystemName The name of the build system
      * @return List of module directory names
      */
     private List<String> extractModuleNames(Path buildFile, String buildSystemName) {
         List<String> modules = new ArrayList<>();
-        
+
         try {
             String content = Files.readString(buildFile);
-            
+
             if ("Maven".equals(buildSystemName)) {
                 // Extract <module>...</module> entries
                 int pos = 0;
@@ -524,14 +634,14 @@ public class EnvScannerCommand implements Runnable {
         } catch (IOException e) {
             // Return empty list on error
         }
-        
+
         return modules;
     }
 
     /**
      * Check if a specific build file contains multi-module markers.
      * This is build-system specific logic.
-     * 
+     *
      * @param buildFile The build file to check
      * @param buildSystemName The name of the build system
      * @return true if the file contains multi-module markers
@@ -539,12 +649,12 @@ public class EnvScannerCommand implements Runnable {
     private boolean isFileMultiModule(Path buildFile, String buildSystemName) {
         try {
             String content = Files.readString(buildFile);
-            
+
             // Maven: check for <modules> or <module> tags
             if ("Maven".equals(buildSystemName)) {
                 return content.contains("<modules>") || content.contains("<module>");
             }
-            
+
             // Gradle: check for include( or include statements in settings.gradle
             if ("Gradle".equals(buildSystemName)) {
                 String fileName = buildFile.getFileName().toString();
@@ -552,10 +662,10 @@ public class EnvScannerCommand implements Runnable {
                     return content.contains("include(") || content.contains("include ");
                 }
             }
-            
+
             // Other build systems: not currently supported for multi-module detection
             return false;
-            
+
         } catch (IOException e) {
             return false;
         }
@@ -564,7 +674,7 @@ public class EnvScannerCommand implements Runnable {
     private Map<String, ToolVersionInfo> detectBuildToolVersions(Set<String> detectedTools) {
         Map<String, ToolVersionInfo> versions = new LinkedHashMap<>();
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-        
+
         for (String tool : detectedTools) {
             // Get the generator for this build system from the registry
             BuildSystemGeneratorRegistry.getGenerator(tool).ifPresent(generator -> {
@@ -573,9 +683,9 @@ public class EnvScannerCommand implements Runnable {
                     if (versionCommand == null || versionCommand.isEmpty()) {
                         return; // Skip if no version command defined
                     }
-                    
+
                     List<String> fullCommand = new ArrayList<>();
-                    
+
                     // On Windows, run through cmd.exe to resolve PATH and .cmd/.bat files
                     if (isWindows) {
                         fullCommand.add("cmd.exe");
@@ -586,11 +696,11 @@ public class EnvScannerCommand implements Runnable {
                         fullCommand.add("-c");
                         fullCommand.add(versionCommand);
                     }
-                    
+
                     ProcessBuilder pb = new ProcessBuilder(fullCommand);
                     pb.redirectErrorStream(true);
                     Process process = pb.start();
-                    
+
                     StringBuilder output = new StringBuilder();
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                         String line;
@@ -598,10 +708,10 @@ public class EnvScannerCommand implements Runnable {
                             output.append(line).append("\n");
                         }
                     }
-                    
+
                     int exitCode = process.waitFor();
                     String result = output.toString().trim();
-                    
+
                     if (exitCode == 0 && !result.isEmpty()) {
                         versions.put(tool, new ToolVersionInfo(true, result));
                     } else {
@@ -617,9 +727,9 @@ public class EnvScannerCommand implements Runnable {
 
     private Map<String, Long> countSourceFiles(Path root) throws IOException {
         Map<String, Long> counts = new LinkedHashMap<>();
-        
+
         Set<String> excludeDirs = getExcludedDirectories();
-        
+
         Files.walk(root)
                 .filter(Files::isRegularFile)
                 .filter(p -> {
@@ -633,23 +743,23 @@ public class EnvScannerCommand implements Runnable {
                 })
                 .filter(p -> {
                     String name = p.getFileName().toString().toLowerCase();
-                    
+
                     // Check if it's a container build file
                     if (FilePatterns.CONTAINER_BUILD_FILES.contains(name) || name.startsWith("dockerfile.")) {
                         return true;
                     }
-                    
+
                     // Check if it has a source code extension
                     if (name.contains(".")) {
                         String ext = name.substring(name.lastIndexOf('.') + 1);
                         return FilePatterns.SOURCE_CODE_EXTENSIONS.contains(ext);
                     }
-                    
+
                     return false;
                 })
                 .forEach(p -> {
                     String name = p.getFileName().toString().toLowerCase();
-                    
+
                     // Special handling for container files
                     if (FilePatterns.CONTAINER_BUILD_FILES.contains(name) || name.startsWith("dockerfile.")) {
                         counts.merge("Dockerfile/Container", 1L, Long::sum);

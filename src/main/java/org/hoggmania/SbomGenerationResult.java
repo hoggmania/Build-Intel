@@ -42,35 +42,35 @@ public class SbomGenerationResult {
         this.buildInfo = buildInfo;
         this.timestamp = java.time.Instant.now().toString();
     }
-    
+
     // Getters and setters for reflection
     public BuildSystemInfo getBuildInfo() { return buildInfo; }
     public void setBuildInfo(BuildSystemInfo buildInfo) { this.buildInfo = buildInfo; }
-    
+
     public boolean isSuccess() { return success; }
     public void setSuccess(boolean success) { this.success = success; }
-    
+
     public String getOutput() { return output; }
     public void setOutput(String output) { this.output = output; }
-    
+
     public String getErrorOutput() { return errorOutput; }
     public void setErrorOutput(String errorOutput) { this.errorOutput = errorOutput; }
-    
+
     public String getExpectedSbomPath() { return expectedSbomPath; }
     public void setExpectedSbomPath(String expectedSbomPath) { this.expectedSbomPath = expectedSbomPath; }
-    
+
     public boolean isSbomFileExists() { return sbomFileExists; }
     public void setSbomFileExists(boolean sbomFileExists) { this.sbomFileExists = sbomFileExists; }
-    
+
     public long getSbomFileSize() { return sbomFileSize; }
     public void setSbomFileSize(long sbomFileSize) { this.sbomFileSize = sbomFileSize; }
-    
+
     public String getTimestamp() { return timestamp; }
     public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
-    
+
     public int getExitCode() { return exitCode; }
     public void setExitCode(int exitCode) { this.exitCode = exitCode; }
-    
+
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 }

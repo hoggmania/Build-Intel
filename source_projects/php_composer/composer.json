@@ -1,0 +1,6 @@
+{
+  "name": "example/php_composer",
+  "description": "Sample Composer project",
+  "type": "project",
+  "require": {}
+}

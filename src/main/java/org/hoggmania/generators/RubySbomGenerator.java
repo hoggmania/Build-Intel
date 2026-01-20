@@ -24,49 +24,59 @@
 package org.hoggmania.generators;
 
 import org.hoggmania.BuildSystemSbomGenerator;
+import org.hoggmania.ToolRequirement;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class RubySbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "Ruby"; 
+    public String getBuildSystemName() {
+        return "Ruby";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "Gemfile"; 
+    public String getBuildFilePattern() {
+        return "Gemfile";
     }
-    
+
     @Override
     public List<String> getExcludedDirectories() {
         return Arrays.asList("vendor", ".bundle");
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "gem --version"; 
+    public String getVersionCheckCommand() {
+        return "gem --version";
     }
-    
+
+    @Override
+    public List<ToolRequirement> getRequiredTools(Path buildFile) {
+        List<ToolRequirement> tools = new ArrayList<>();
+        tools.add(new ToolRequirement("gem", "gem --version", null));
+        tools.add(new ToolRequirement("cyclonedx-ruby", "cyclonedx-ruby --help", "gem install cyclonedx-ruby"));
+        return tools;
+    }
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         String outputFile = projectName + "-bom.json";
-        return String.format("cyclonedx-ruby -o %s/%s -t json",
+        return String.format("cyclonedx-ruby -o %s/%s",
             outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
         String outputFile = projectName + "-bom.json";
-        return String.format("cyclonedx-ruby -p %s -o %s/%s -t json",
+        return String.format("cyclonedx-ruby -p %s -o %s/%s",
             buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String extractProjectName(Path root) {
         try {

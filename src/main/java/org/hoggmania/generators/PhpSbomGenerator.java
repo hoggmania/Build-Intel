@@ -24,49 +24,63 @@
 package org.hoggmania.generators;
 
 import org.hoggmania.BuildSystemSbomGenerator;
+import org.hoggmania.ToolRequirement;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class PhpSbomGenerator implements BuildSystemSbomGenerator {
     @Override
-    public String getBuildSystemName() { 
-        return "PHP"; 
+    public String getBuildSystemName() {
+        return "PHP";
     }
-    
+
     @Override
-    public String getBuildFilePattern() { 
-        return "composer.json"; 
+    public String getBuildFilePattern() {
+        return "composer.json";
     }
-    
+
     @Override
     public List<String> getExcludedDirectories() {
         return Arrays.asList("vendor");
     }
-    
+
     @Override
-    public String getVersionCheckCommand() { 
-        return "composer --version"; 
+    public String getVersionCheckCommand() {
+        return "composer --version";
     }
-    
+
+    @Override
+    public List<ToolRequirement> getRequiredTools(Path buildFile) {
+        List<ToolRequirement> tools = new ArrayList<>();
+        tools.add(new ToolRequirement("composer", "composer --version", null));
+        tools.add(new ToolRequirement(
+            "cyclonedx-php-composer",
+            "composer CycloneDX:make-sbom --help",
+            "composer global require cyclonedx/cyclonedx-php-composer"
+        ));
+        return tools;
+    }
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir) {
         String outputFile = projectName + "-bom.json";
-        return String.format("composer make-bom --spec-version=1.4 --output-format=json --output-file=%s/%s",
+        return String.format("composer CycloneDX:make-sbom --spec-version=1.6 --output-format=JSON --output-file=%s/%s",
             outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String generateSbomCommand(String projectName, File outputDir, Path buildFile) {
         String outputFile = projectName + "-bom.json";
-        return String.format("composer make-bom --spec-version=1.4 --output-format=json --working-dir=%s --output-file=%s/%s",
+        return String.format("composer CycloneDX:make-sbom --spec-version=1.6 --output-format=JSON --working-dir=%s --output-file=%s/%s",
             buildFile.getParent().toAbsolutePath(), outputDir.getAbsolutePath(), outputFile);
     }
-    
+
     @Override
     public String extractProjectName(Path composerJson) {
         try {

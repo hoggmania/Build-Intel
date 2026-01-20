@@ -14,6 +14,7 @@ build/
 
 # SBOM output
 generated-sboms/
+binary_projects/
 *.bom.json
 *.bom.xml
 bom.json
@@ -99,6 +100,9 @@ dist/
 *.zip
 *.tar.gz
 *.rar
+
+# Sample binary projects
+!binary_projects/**/*.jar
 
 # Dependency directories
 node_modules/

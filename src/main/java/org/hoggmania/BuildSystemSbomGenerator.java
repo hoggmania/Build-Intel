@@ -36,7 +36,7 @@ public interface BuildSystemSbomGenerator {
      * Get the build system name (e.g., "Maven", "npm", "Go")
      */
     String getBuildSystemName();
-    
+
 
     /**
      * Generate the SBOM command for this build system
@@ -62,52 +62,63 @@ public interface BuildSystemSbomGenerator {
         // By default, ignore additionalArgs for backward compatibility
         return generateSbomCommand(projectName, outputDir, buildFile);
     }
-    
+
     /**
      * Extract project name from build files
      */
     String extractProjectName(Path primaryBuildFile);
-    
+
     /**
      * Get the primary build file name pattern (e.g., "pom.xml", "package.json")
      */
     String getBuildFilePattern();
-    
+
     /**
      * Get additional build file patterns (e.g., for .NET: *.csproj, *.vbproj)
      */
     default List<String> getAdditionalBuildFilePatterns() {
         return Collections.emptyList();
     }
-    
+
     /**
      * Get directories to exclude when searching for build files
      */
     default List<String> getExcludedDirectories() {
         return Collections.emptyList();
     }
-    
+
+    /**
+     * Get required tools for SBOM generation, optionally based on build file.
+     */
+    default List<ToolRequirement> getRequiredTools(Path buildFile) {
+        String versionCommand = getVersionCheckCommand();
+        if (versionCommand == null || versionCommand.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(new ToolRequirement(getBuildSystemName(), versionCommand, null));
+    }
+
     /**
      * Check if this is a multi-module project
      */
     default boolean isMultiModule(List<Path> buildFiles) {
         return buildFiles.size() > 1;
     }
-    
+
     /**
      * Prepare the build environment before SBOM generation (e.g., download dependencies)
      */
     default boolean prepareEnvironment(BuildSystemInfo buildInfo, File rootDir) {
         return true; // No preparation needed by default
     }
-    
+
     /**
      * Map error output to user-friendly error messages
      */
     default String mapErrorMessage(String errorOutput, int exitCode) {
         return "SBOM generation failed with exit code: " + exitCode;
     }
-    
+
     /**
      * Get the version check command for this build tool
      */

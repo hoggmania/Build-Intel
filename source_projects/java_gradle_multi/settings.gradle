@@ -1,0 +1,2 @@
+rootProject.name = 'java_gradle_multi'
+include 'core', 'service', 'web'
