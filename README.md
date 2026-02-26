@@ -6,6 +6,7 @@ A powerful Quarkus-based CLI tool for intelligently analyzing build environments
 
 - **Build Environment Scanning**: Automatically detects Maven, Gradle, npm, Yarn, pnpm, Python (pip/requirements, Pipenv, Poetry, uv), Go, .NET, Rust, PHP, Ruby, Conda, and standalone binaries
 - **Intelligent SBOM Generation**: Runs CycloneDX tooling when available, with Syft-based filesystem/binary scanning as a fallback
+- **Command Progress Bars**: Shows a progress bar as each SBOM command starts and completes
 - **File Type Analysis**: Analyzes source code files with percentage breakdowns and rankings
 - **Multi-Module Support**: Aggregates Maven multi-module SBOMs and supports Gradle projects with the CycloneDX plugin
 - **Cross-Platform**: Works on Windows, Linux, and macOS

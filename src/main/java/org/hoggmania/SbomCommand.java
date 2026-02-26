@@ -139,6 +139,7 @@ public class SbomCommand implements Runnable {
     @Override
     public void run() {
         try {
+            printCommandProgress(0, 1, "Starting sbom command");
             additionalArgs = validateAdditionalArgs(additionalArgs);
 
             // Create output directory if it doesn't exist

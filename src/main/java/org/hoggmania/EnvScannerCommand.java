@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 )
 
 public class EnvScannerCommand implements Runnable {
+    private static final int PROGRESS_BAR_WIDTH = 28;
 
     /**
      * Find files by pattern (supports wildcards like *.csproj).
@@ -85,16 +86,30 @@ public class EnvScannerCommand implements Runnable {
     @Override
     public void run() {
         try {
+            int totalSteps = 6;
+            int completedSteps = 0;
+
+            printProgress(completedSteps, totalSteps, "Starting scan");
             Map<String, List<Path>> foundFiles = scanFiles(rootWorkingDir.toPath());
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "File scan complete");
 
             // Detect multi-module builds (legacy, kept for backward compatibility)
             Map<String, Boolean> multiModuleInfo = detectMultiModuleBuilds(foundFiles);
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "Multi-module detection complete");
 
             // Detect detailed build system instances with multi-module filtering
             Map<String, List<BuildSystemInstance>> detailedBuildSystems = detectDetailedBuildSystems(foundFiles);
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "Build-system analysis complete");
 
             Map<String, ToolVersionInfo> toolVersions = detectBuildToolVersions(foundFiles.keySet());
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "Tool version checks complete");
             Map<String, Long> fileTypeCounts = countSourceFiles(rootWorkingDir.toPath());
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "File type counting complete");
 
             // Calculate percentages and create FileTypeInfo objects
             long totalFiles = fileTypeCounts.values().stream().mapToLong(Long::longValue).sum();
@@ -119,10 +134,33 @@ public class EnvScannerCommand implements Runnable {
             result.put("toolVersions", toolVersions);
             result.put("fileTypeCounts", fileTypeStats);
 
+            completedSteps++;
+            printProgress(completedSteps, totalSteps, "Printing results");
             outputResults(result);
         } catch (IOException e) {
             throw new RuntimeException("Error scanning files", e);
         }
+    }
+
+    private void printProgress(int completed, int total, String message) {
+        int safeTotal = Math.max(total, 1);
+        int safeCompleted = Math.max(0, Math.min(completed, safeTotal));
+        int percent = (int) Math.round((safeCompleted * 100.0) / safeTotal);
+        int filledWidth = (int) Math.round((safeCompleted * PROGRESS_BAR_WIDTH) / (double) safeTotal);
+
+        StringBuilder bar = new StringBuilder(PROGRESS_BAR_WIDTH);
+        for (int i = 0; i < PROGRESS_BAR_WIDTH; i++) {
+            bar.append(i < filledWidth ? '=' : '-');
+        }
+
+        System.out.println(String.format(
+            "%s [%s] %3d%% (%d/%d) %s",
+            ConsoleColors.bold("[PROGRESS]"),
+            bar,
+            percent,
+            safeCompleted,
+            safeTotal,
+            message));
     }
 
     // Inner class to hold tool version information
