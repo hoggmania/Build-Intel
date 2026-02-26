@@ -1,6 +1,6 @@
-# build.env.intel
+# Build Intel
 
-A powerful Quarkus-based CLI tool for intelligently analyzing build environments and generating Software Bill of Materials (SBOM) with automatic build system detection.
+A powerful CLI tool for CI to intelligently analyzing build environments and generating Software Bill of Materials (SBOM) with automatic build system detection.
 
 ## Features
 
@@ -24,7 +24,7 @@ A powerful Quarkus-based CLI tool for intelligently analyzing build environments
 ### Clone and Build
 
 ```bash
-git clone https://github.com/hoggmania/build.env.intel.git
+git clone https://github.com/hoggmania/Build.Intel.git
 cd build.env.intel
 
 # Build JVM version
@@ -91,28 +91,6 @@ Build Systems Detected:
       [Standalone] .\SBOMMerge\pom.xml
       [Standalone] .\scalibr\osv-cli\pom.xml
       [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\javareach-test\META-INF\maven\com\example\hello-tester\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\javareach-test\META-INF\maven\mock\reachable\test-jar\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\javareach-test\META-INF\maven\mock\unreachable\test-jar\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\pomxml\testdata\parent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\pomxmlnet\testdata\maven\parent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\manifest\maven\testdata\my-app\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\manifest\maven\testdata\no-dependency-management\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\manifest\maven\testdata\parent\grandparent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\manifest\maven\testdata\parent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\maven-classifier\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\workaround\commons\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\workaround\guava\android-to-android\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\workaround\guava\jre-to-jre\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\workaround\guava\none-to-jre\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\zeppelin-server\parent\parent\pom.xml
-      [Multi-Module Root] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\zeppelin-server\parent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\internal\strategy\override\testdata\zeppelin-server\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\testdata\maven\basic\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\testdata\maven\patchchoice\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\guidedremediation\testdata\maven\update\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\internal\mavenutil\testdata\my-app\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\internal\mavenutil\testdata\parent\pom.xml
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\internal\mavenutil\testdata\pom.xml
       [Standalone] .\scalibr\scalibr-java-bindings\pom.xml
       [Standalone] .\ScanStatus\pom.xml
       [Standalone] .\service.purl\pom.xml
@@ -161,35 +139,6 @@ Build Systems Detected:
 
    Standalone Binaries (Syft):
       [Standalone] .\Binary-scanning-examples\binary-projects\code-with-quarkus-built\code-with-quarkus-1.0.0-SNAPSHOT.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\aether-api-0.9.0.M2.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\aether-impl-0.9.0.M2.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\aether-spi-0.9.0.M2.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\cdi-api-1.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\commons-beanutils-1.7.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\commons-chain-1.1.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\commons-digester-1.8.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\commons-lang-2.4.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\dom4j-1.1.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\jsr250-api-1.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\oro-2.0.8.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\plexus-cipher-1.4.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\plexus-classworlds-2.4.2.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\plexus-i18n-1.0-beta-10.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\plexus-interpolation-1.16.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\plexus-sec-dispatcher-1.3.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\velocity-1.7.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\just-a-bag-of-jars\lib\velocity-tools-2.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-gradle-multi-built\core-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-gradle-multi-built\service-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-gradle-single-built\gradle-single-app-1.0.0-plain.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-gradle-single-built\gradle-single-app-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-maven-multi-built\core-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-maven-multi-built\service-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-maven-multi-built\web-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\binary-projects\sample-java-maven-single-built\maven-single-app-1.0.0.jar
-      [Standalone] .\Binary-scanning-examples\source-projects\sample-java-gradle-multi\gradle\wrapper\gradle-wrapper.jar
-      [Standalone] .\Binary-scanning-examples\source-projects\sample-java-gradle-single\gradle\wrapper\gradle-wrapper.jar
-      [Standalone] .\cli-test\jars\commons-codec-1.16.1.jar
       [Standalone] .\cli-test\jars\commons-io-2.14.0.jar
       [Standalone] .\cli-test\jars\cyclonedx-core-java-8.0.3.jar
       [Standalone] .\cli-test\jars\json-schema-validator-1.0.87.jar
@@ -200,22 +149,7 @@ Build Systems Detected:
       [Standalone] .\quarkus.gradle.kotlin.test\gradle.test\gradle\wrapper\gradle-wrapper.jar
       [Standalone] .\quarkus.gradle.test\gradle.test\gradle\wrapper\gradle-wrapper.jar
       [Standalone] .\random-generator\jfiglet-0.0.9.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\javareach-test.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\reachable-dep-test.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\enricher\reachability\java\testdata\unreachable-dep-test.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\com.google.src.yolo-0.1.2.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\complex.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\empty.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\guava-31.1-jre.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\invalid_jar.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\nested_at_10.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\nested_at_100.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\no_pom_properties-2.4.0.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\no_pom_properties.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\org.eclipse.sisu.inject-0.3.5.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\pom_missing_group_id-2.4.0.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\pom_missing_group_id.jar
-      [Standalone] .\scalibr\scalibr-c-bindings\osv-scalibr\extractor\filesystem\language\java\archive\testdata\simple.jar
+
 
    .NET:
       [Standalone] .\cdxgen\test\data\Logging.csproj
@@ -535,5 +469,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Created by **hoggmania** (<hoggmania@gmail.com>)
 
 ---
-
-**Built with Quarkus** - Supersonic Subatomic Java Framework
