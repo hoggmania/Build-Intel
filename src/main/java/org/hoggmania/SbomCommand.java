@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 public class SbomCommand implements Runnable {
     private static final Pattern ADDITIONAL_ARGS_ALLOWED =
         Pattern.compile("^[A-Za-z0-9_\\-./=:+,@\\\\\\s]*$");
+    private static final int PROGRESS_BAR_WIDTH = 28;
 
     @Parameters(index = "0", description = "Root directory to inspect.", defaultValue = "./")
     File rootDir;
@@ -233,11 +234,19 @@ public class SbomCommand implements Runnable {
         }            System.out.println(ConsoleColors.bold("\n=== Generating SBOMs ==="));
             List<Boolean> results = new ArrayList<>();
             List<SbomGenerationResult> generationResults = new ArrayList<>();
+            int totalCommands = buildSystems.size();
+            int completedCommands = 0;
             for (BuildSystemInfo buildInfo : buildSystems) {
+                printCommandProgress(completedCommands, totalCommands,
+                    "Starting " + buildInfo.projectName + " (" + buildInfo.buildSystem + ")");
                 System.out.println("\n--- Generating SBOM for " + ConsoleColors.info(buildInfo.buildSystem) + " ---");
                 SbomGenerationResult result = generateSbomWithDetails(buildInfo);
                 results.add(result.success);
                 generationResults.add(result);
+                completedCommands++;
+                String statusMessage = (result.success ? "Completed " : "Failed ")
+                    + buildInfo.projectName + " (" + buildInfo.buildSystem + ")";
+                printCommandProgress(completedCommands, totalCommands, statusMessage);
             }
 
             if (merge && buildSystems.size() > 1) {
@@ -269,6 +278,27 @@ public class SbomCommand implements Runnable {
                 "Allowed: letters, digits, space, and - _ . / = : + , @ \\");
         }
         return trimmed;
+    }
+
+    private void printCommandProgress(int completed, int total, String message) {
+        int safeTotal = Math.max(total, 1);
+        int safeCompleted = Math.max(0, Math.min(completed, safeTotal));
+        int percent = (int) Math.round((safeCompleted * 100.0) / safeTotal);
+        int filledWidth = (int) Math.round((safeCompleted * PROGRESS_BAR_WIDTH) / (double) safeTotal);
+
+        StringBuilder bar = new StringBuilder(PROGRESS_BAR_WIDTH);
+        for (int i = 0; i < PROGRESS_BAR_WIDTH; i++) {
+            bar.append(i < filledWidth ? '=' : '-');
+        }
+
+        System.out.println(String.format(
+            "%s [%s] %3d%% (%d/%d) %s",
+            ConsoleColors.bold("[PROGRESS]"),
+            bar,
+            percent,
+            safeCompleted,
+            safeTotal,
+            message));
     }
 
     /**

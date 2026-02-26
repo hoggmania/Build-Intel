@@ -4,13 +4,13 @@ A powerful Quarkus-based CLI tool for intelligently analyzing build environments
 
 ## Features
 
-- **Build Environment Scanning**: Automatically detects build tools (Maven, Gradle, npm, Python, Go), their versions, and multi-module configurations
-- **Intelligent SBOM Generation**: Automatically selects and executes the appropriate CycloneDX plugin based on detected build system
+- **Build Environment Scanning**: Automatically detects Maven, Gradle, npm, Yarn, pnpm, Python (pip/requirements, Pipenv, Poetry, uv), Go, .NET, Rust, PHP, Ruby, Conda, and standalone binaries
+- **Intelligent SBOM Generation**: Runs CycloneDX tooling when available, with Syft-based filesystem/binary scanning as a fallback
 - **File Type Analysis**: Analyzes source code files with percentage breakdowns and rankings
-- **Multi-Module Detection**: Identifies Maven and Gradle multi-module projects
+- **Multi-Module Support**: Aggregates Maven multi-module SBOMs and supports Gradle projects with the CycloneDX plugin
 - **Cross-Platform**: Works on Windows, Linux, and macOS
 - **Native Image Support**: Optimized for GraalVM native compilation for instant startup
-- **JSON Export**: Machine-readable output for integration with other tools
+- **JSON Export**: Optional JSON output for scan results and SBOM summaries (`--json`)
 
 ## Prerequisites
 
@@ -40,20 +40,23 @@ cd build.env.intel
 The `scan` command analyzes your build environment and source code:
 
 ```bash
-# JVM mode (default output: scan-results.json)
+# JVM mode (console output)
 java -jar target/quarkus-app/quarkus-run.jar scan
+
+# JVM mode with JSON output (default: scan-results.json)
+java -jar target/quarkus-app/quarkus-run.jar scan --json
 
 # Native executable
 ./target/build.env.intel-1.0.0-SNAPSHOT-runner scan
 
 # Specify custom JSON output file
-java -jar target/quarkus-app/quarkus-run.jar scan --output custom-scan.json
+java -jar target/quarkus-app/quarkus-run.jar scan --json --output custom-scan.json
 ```
 
 **Output:**
 
 - **Console Output**: Always displays formatted results to stdout
-- **JSON File**: Always generates a JSON file (default: `scan-results.json`)
+- **JSON File**: Generated when `--json` is set (default: `scan-results.json` or `--output`)
 
 **Information Included:**
 
@@ -62,7 +65,7 @@ java -jar target/quarkus-app/quarkus-run.jar scan --output custom-scan.json
 - Source file type distribution with percentages
 - Ranked file types by count
 
-**Example Output:**
+**Example Output (`--json` enabled):**
 
 ```bash
 Build Environment Intelligence Scanner
@@ -318,17 +321,29 @@ D:\dev\github>
 ### SBOM Command
 
 
-The `sbom` command generates a Software Bill of Materials using the appropriate CycloneDX plugin:
+The `sbom` command generates SBOMs using the most appropriate tool for each detected build system:
 
 ```bash
-# Auto-detect and generate SBOM (outputs to generated-sboms/ directory in JSON format)
+# Auto-detect and generate SBOMs (default output: generated-sboms/)
 java -jar target/quarkus-app/quarkus-run.jar sbom
+
+# Write summary logs as JSON
+java -jar target/quarkus-app/quarkus-run.jar sbom --json
 
 # Specify output directory
 java -jar target/quarkus-app/quarkus-run.jar sbom --output ./custom-sbom-dir
 
 # Generate and merge multiple SBOMs (for multi-language projects)
 java -jar target/quarkus-app/quarkus-run.jar sbom --merge
+
+# Allow installing missing tools
+java -jar target/quarkus-app/quarkus-run.jar sbom --allow-tool-install
+
+# Pass through additional args to the underlying tools
+java -jar target/quarkus-app/quarkus-run.jar sbom --additional-args "--no-validate"
+
+# SBOM-only mode (Syft filesystem scan)
+java -jar target/quarkus-app/quarkus-run.jar sbom --sbom-only --output ./custom-sbom-dir
 
 # Dry run (show what would be executed)
 java -jar target/quarkus-app/quarkus-run.jar sbom --dry-run
@@ -337,53 +352,62 @@ java -jar target/quarkus-app/quarkus-run.jar sbom --dry-run
 **Output:**
 
 - **Console Output**: Always displays build system detection, command execution, and generation status
-- **SBOM Files**: Generated in the specified output directory (default: `generated-sboms/`)
-- **Summary JSON**: Always creates `sbom-summary.json` with metadata about the generation process
+- **SBOM Files**: Generated in the specified output directory (default: `generated-sboms/`); JSON for most tools, XML for `cyclonedx-ruby`
+- **Summary JSON**: Generated when `--json` is set (`sbom-summary.json` and `sbom-generation-aggregate.json`)
 
 **Key Features:**
 
-- **Auto-detection**: Automatically identifies build system and selects appropriate CycloneDX plugin
-- **JSON Format**: All SBOMs are generated in JSON format for maximum compatibility
+- **Auto-detection**: Automatically identifies build systems and selects the most appropriate generator
+- **JSON Format**: JSON for most generators; Ruby emits CycloneDX XML via `cyclonedx-ruby`
 - **Project-based naming**: SBOM files are automatically named using the project name extracted from build files (e.g., `build.env.intel-bom.json`, `my-app-bom.json`)
 - **SBOM Merging**: Use `--merge` flag to combine multiple SBOMs into a single `merged-bom.json` (useful for polyglot projects)
 - **Default output**: All SBOMs are generated in the `generated-sboms/` directory at the project root
-- **JSON Summary**: Includes timestamp, build system, project name, working directory, command executed, and list of generated files
+- **JSON Summary**: Includes timestamp, build system, project name, working directory, command executed, and list of generated files when `--json` is set
 
 **Project Name Detection:**
 
 - **Maven**: Extracted from `<artifactId>` in `pom.xml`
 - **Gradle**: Extracted from `rootProject.name` in `settings.gradle` or directory name
-- **npm**: Extracted from `"name"` field in `package.json`
+- **npm/Yarn/pnpm**: Extracted from `"name"` field in `package.json`
 - **Python**: Extracted from `name=` in `setup.py` or `pyproject.toml`
+- **Pipenv/Poetry/uv**: Defaults to the project directory name
 - **Go**: Extracted from module name in `go.mod`
 - **.NET**: Extracted from `<AssemblyName>` or project filename
 - **Rust**: Extracted from `name` in `Cargo.toml`
 - **PHP**: Extracted from `"name"` in `composer.json`
 - **Ruby**: Extracted from `.gemspec` filename or directory name
+- **Conda/Standalone binaries**: Defaults to the project directory name
 
 **Supported Build Systems:**
 
-| Build System | Detection File | CycloneDX Tool | Command |
-|--------------|---------------|----------------|---------|
+| Build System | Detection File | Tool | Command |
+|--------------|---------------|------|---------|
 | Maven | `pom.xml` | cyclonedx-maven-plugin | `mvn cyclonedx:makeAggregateBom` |
-| Gradle | `build.gradle(.kts)` | cyclonedxBom task | `gradle cyclonedxBom` |
-| npm | `package.json` | @cyclonedx/cyclonedx-npm | `npx @cyclonedx/cyclonedx-npm` |
-| Python | `setup.py`, `pyproject.toml`, `requirements.txt` | cyclonedx-py | `cyclonedx-py` |
-| Go | `go.mod` | cyclonedx-gomod | `cyclonedx-gomod app` |
-| .NET | `*.csproj`, `*.vbproj`, `*.fsproj`, `*.sln` | cyclonedx-dotnet | `dotnet CycloneDX` |
-| Rust | `Cargo.toml` | cyclonedx-rust | `cargo cyclonedx` |
-| PHP | `composer.json` | cyclonedx-php-composer | `composer make-bom` |
-| Ruby | `Gemfile` | cyclonedx-ruby-gem | `cyclonedx-ruby` |
+| Gradle | `build.gradle(.kts)` | org.cyclonedx.bom | `gradle cyclonedxBom` |
+| npm | `package.json` | npm CLI | `npm sbom --sbom-format=cyclonedx` |
+| Yarn | `yarn.lock` | Syft | `syft scan dir:<path> -o cyclonedx-json=...` |
+| pnpm | `pnpm-lock.yaml` | Syft | `syft scan dir:<path> -o cyclonedx-json=...` |
+| Pipenv | `Pipfile.lock` | cyclonedx-py | `cyclonedx-py pipenv` |
+| Poetry | `poetry.lock` | cyclonedx-py | `cyclonedx-py poetry` |
+| uv | `uv.lock` | uv + cyclonedx-py | `uv run cyclonedx-py environment` |
+| Python | `requirements.txt`, `setup.py`, `pyproject.toml` | cyclonedx-py | `cyclonedx-py requirements` |
+| Conda | `environment.yml` | Syft | `syft scan dir:<path> -o cyclonedx-json=...` |
+| Go | `go.mod` | Go toolchain | `go list -m -json all` |
+| .NET | `*.csproj`, `*.vbproj`, `*.fsproj`, `*.sln` | CycloneDX (.NET tool) | `dotnet CycloneDX --output-format json -o <dir> -fn <file>` |
+| Rust | `Cargo.toml` | cargo-cyclonedx | `cargo cyclonedx -f json --override-filename <name>` |
+| PHP | `composer.json` | cyclonedx-php-composer | `composer CycloneDX:make-sbom` |
+| Ruby | `Gemfile` | cyclonedx-ruby | `cyclonedx-ruby -p <dir> -o <file>` |
+| Standalone Binaries | `*.jar`, `*.exe`, `*.dll`, ... | Syft | `syft scan dir:<path> -o cyclonedx-json=...` |
 
 For detailed information about CycloneDX plugins for each language, see [cyclonedx_plugins_by_language.md](cyclonedx_plugins_by_language.md).
 
 **SBOM Features:**
 
 - Automatic multi-module aggregation for Maven and Gradle
-- Configurable output format (JSON/XML)
+- JSON output for most generators; Ruby emits CycloneDX XML
 - Version detection and reporting
 - Dry-run mode to preview commands
-- **Multi-SBOM merging**: Automatically merges SBOMs from different build systems into a single consolidated SBOM
+- **Multi-SBOM merging**: Enabled with `--merge` to combine SBOMs from different build systems
 - **Intelligent naming**: Uses actual project names instead of generic prefixes (e.g., `quarkus-app-bom.json` instead of `maven-bom.json`)
 
 ## Use Cases
@@ -445,7 +469,7 @@ curl http://localhost:8080 # (if web endpoints added)
 
 ```bash
 # JVM package (uber-jar)
-./mvnw clean package -Dquarkus.package.type=uber-jar
+./mvnw clean package -Dquarkus.package.jar.type=uber-jar
 
 # Native executable (requires GraalVM)
 ./mvnw clean package -Dnative
@@ -459,7 +483,7 @@ curl http://localhost:8080 # (if web endpoints added)
 Application configuration in `src/main/resources/application.properties`:
 
 ```properties
-quarkus.package.type=uber-jar
+quarkus.package.jar.type=uber-jar
 quarkus.banner.enabled=false
 ```
 
