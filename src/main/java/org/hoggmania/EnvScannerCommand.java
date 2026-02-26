@@ -272,7 +272,7 @@ public class EnvScannerCommand implements Runnable {
     @SuppressWarnings("unchecked")
     private void outputResults(Map<String, Object> result) throws IOException {
         // Always output to console
-        System.out.println(ConsoleColors.bold("\nBuild Environment Intelligence Scanner"));
+        System.out.println(ConsoleColors.bold("\nOmniBOM Scanner"));
         System.out.println(ConsoleColors.bold("====================================="));
         System.out.println("\nScanned directory: " + ConsoleColors.highlight(rootWorkingDir.getAbsolutePath()));
 

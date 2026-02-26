@@ -1,4 +1,4 @@
-# Copilot Instructions for build.env.intel
+# Copilot Instructions for omnibom
 
 ## Project Overview
 

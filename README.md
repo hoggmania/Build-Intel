@@ -1,4 +1,4 @@
-# Build Intel
+# OmniBOM
 
 A powerful CLI tool for CI to intelligently analyzing build environments and generating Software Bill of Materials (SBOM) with automatic build system detection.
 
@@ -25,7 +25,7 @@ A powerful CLI tool for CI to intelligently analyzing build environments and gen
 
 ```bash
 git clone https://github.com/hoggmania/Build.Intel.git
-cd build.env.intel
+cd omnibom
 
 # Build JVM version
 ./mvnw clean package
@@ -48,7 +48,7 @@ java -jar target/quarkus-app/quarkus-run.jar scan
 java -jar target/quarkus-app/quarkus-run.jar scan --json
 
 # Native executable
-./target/build.env.intel-1.0.0-SNAPSHOT-runner scan
+./target/omnibom-1.0.0-SNAPSHOT-runner scan
 
 # Specify custom JSON output file
 java -jar target/quarkus-app/quarkus-run.jar scan --json --output custom-scan.json
@@ -69,7 +69,7 @@ java -jar target/quarkus-app/quarkus-run.jar scan --json --output custom-scan.js
 **Example Output (`--json` enabled):**
 
 ```bash
-Build Environment Intelligence Scanner
+OmniBOM Scanner
 =====================================
 
 Scanned directory: D:\dev\github\.
@@ -80,7 +80,7 @@ Build Systems Detected:
       [Standalone] .\Binary-scanning-examples\source-projects\code-with-quarkus\pom.xml
       [Multi-Module Root] .\Binary-scanning-examples\source-projects\sample-java-maven-multi\pom.xml
       [Standalone] .\Binary-scanning-examples\source-projects\sample-java-maven-single\pom.xml
-      [Standalone] .\build.env.intel\pom.xml
+      [Standalone] .\omnibom\pom.xml
       [Standalone] .\cdxgen\test\pom.xml
       [Standalone] .\ClouderaVEX\pom.xml
       [Standalone] .\mvn-repo-vex\pom.xml
@@ -294,7 +294,7 @@ java -jar target/quarkus-app/quarkus-run.jar sbom --dry-run
 
 - **Auto-detection**: Automatically identifies build systems and selects the most appropriate generator
 - **JSON Format**: JSON for most generators; Ruby emits CycloneDX XML via `cyclonedx-ruby`
-- **Project-based naming**: SBOM files are automatically named using the project name extracted from build files (e.g., `build.env.intel-bom.json`, `my-app-bom.json`)
+- **Project-based naming**: SBOM files are automatically named using the project name extracted from build files (e.g., `omnibom-bom.json`, `my-app-bom.json`)
 - **SBOM Merging**: Use `--merge` flag to combine multiple SBOMs into a single `merged-bom.json` (useful for polyglot projects)
 - **Default output**: All SBOMs are generated in the `generated-sboms/` directory at the project root
 - **JSON Summary**: Includes timestamp, build system, project name, working directory, command executed, and list of generated files when `--json` is set
@@ -375,7 +375,7 @@ Analyze legacy projects to understand technology stack:
 ```bash
 # Scan unknown project
 cd /path/to/legacy-project
-java -jar /path/to/build.env.intel.jar scan --json analysis.json
+java -jar /path/to/omnibom.jar scan --json analysis.json
 
 # Review detected tools and file distribution
 cat analysis.json

@@ -1,6 +1,6 @@
 # CycloneDX SBOM Generators and Plugins by Language
 
-## Project Integration Notes (build.env.intel)
+## Project Integration Notes (omnibom)
 
 - The CLI auto-detects build systems and uses the most appropriate generator for each ecosystem.
 - CycloneDX JSON is the default for most tools; `cyclonedx-ruby` emits XML, and Go uses `go list -m -json all` (module inventory, not CycloneDX).
